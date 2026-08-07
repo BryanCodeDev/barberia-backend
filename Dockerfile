@@ -18,4 +18,5 @@ ENV NODE_ENV=production
 
 HEALTHCHECK --interval=30s --timeout=3s CMD wget -qO- http://localhost:3001/api/health || exit 1
 
+# Force redeploy to pick up latest code changes
 CMD ["node", "src/index.js"]
