@@ -65,14 +65,27 @@ app.use(errorHandler);
 
 const PORT = process.env.PORT || 3001;
 
-async function startServer() {
-  try {
-    await pool.getConnection();
-    logger.info('Conectado a MySQL');
-  } catch (err) {
-    logger.error('Error conectando a MySQL:', err.message);
-    process.exit(1);
+async function waitForDatabase() {
+  const maxAttempts = 20;
+  const delayMs = 3000;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      await pool.getConnection();
+      logger.info('Conectado a MySQL');
+      return;
+    } catch (err) {
+      logger.warn(`Intento ${attempt}/${maxAttempts}: Error conectando a MySQL. Reintentando en ${delayMs / 1000}s...`);
+      await new Promise(resolve => setTimeout(resolve, delayMs));
+    }
   }
+
+  logger.error('No se pudo conectar a MySQL después de varios intentos');
+  process.exit(1);
+}
+
+async function startServer() {
+  await waitForDatabase();
 
   await migrate();
 
