@@ -111,7 +111,6 @@ Thumbs.db
 
 # PM2
 .pm2/
-ecosystem.config.js
 
 # Test coverage
 coverage/
