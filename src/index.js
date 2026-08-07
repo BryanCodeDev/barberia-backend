@@ -3,9 +3,17 @@ const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
 const rateLimit = require('express-rate-limit');
-const logger = require('./utils/logger');
 require('dotenv').config();
 
+process.on('unhandledRejection', (err) => {
+  console.error('Unhandled promise rejection', err);
+});
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught exception', err);
+  process.exit(1);
+});
+
+const logger = require('./utils/logger');
 const pool = require('./config/database');
 const { authenticateToken } = require('./middleware/auth');
 const errorHandler = require('./middleware/errorHandler');
@@ -64,14 +72,6 @@ app.use('/api/admin', authenticateToken, adminRoutes);
 app.use(errorHandler);
 
 const PORT = process.env.PORT || 3001;
-
-process.on('unhandledRejection', (err) => {
-  logger.error('Unhandled promise rejection', err);
-});
-process.on('uncaughtException', (err) => {
-  logger.error('Uncaught exception', err);
-  process.exit(1);
-});
 
 async function waitForDatabase() {
   const maxAttempts = 40;
