@@ -13,11 +13,4 @@ const pool = mysql.createPool({
   charset: 'utf8mb4',
 });
 
-const dbHost = process.env.DB_HOST || process.env.MYSQLHOST || 'localhost';
-const dbPort = parseInt(process.env.DB_PORT, 10) || parseInt(process.env.MYSQLPORT, 10) || 3306;
-const dbUser = process.env.DB_USER || process.env.MYSQLUSER || 'root';
-const dbName = process.env.DB_NAME || process.env.MYSQL_DATABASE || 'barber_trebol';
-
-logger.info(`Config DB: ${dbUser}@${dbHost}:${dbPort}/${dbName}`);
-
 module.exports = pool;
