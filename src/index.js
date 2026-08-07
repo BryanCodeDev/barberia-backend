@@ -65,6 +65,14 @@ app.use(errorHandler);
 
 const PORT = process.env.PORT || 3001;
 
+process.on('unhandledRejection', (err) => {
+  logger.error('Unhandled promise rejection', err);
+});
+process.on('uncaughtException', (err) => {
+  logger.error('Uncaught exception', err);
+  process.exit(1);
+});
+
 async function waitForDatabase() {
   const maxAttempts = 40;
   const delayMs = 3000;
@@ -87,12 +95,20 @@ async function waitForDatabase() {
 }
 
 async function startServer() {
-  await waitForDatabase();
+  try {
+    await waitForDatabase();
+    await migrate();
+  } catch (err) {
+    logger.error('Fallo en inicializacion del servidor', err);
+    process.exit(1);
+  }
 
-  await migrate();
-
-  app.listen(PORT, () => {
+  const server = app.listen(PORT, () => {
     logger.info(`Servidor backend corriendo en puerto ${PORT} [${process.env.NODE_ENV || 'development'}]`);
+  });
+
+  server.on('error', (err) => {
+    logger.error('Error en servidor HTTP', err);
   });
 }
 
