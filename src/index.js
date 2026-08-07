@@ -66,16 +66,18 @@ app.use(errorHandler);
 const PORT = process.env.PORT || 3001;
 
 async function waitForDatabase() {
-  const maxAttempts = 20;
+  const maxAttempts = 40;
   const delayMs = 3000;
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
-      await pool.getConnection();
+      const connection = await pool.getConnection();
+      connection.release();
       logger.info('Conectado a MySQL');
       return;
     } catch (err) {
-      logger.warn(`Intento ${attempt}/${maxAttempts}: Error conectando a MySQL. Reintentando en ${delayMs / 1000}s...`);
+      const message = err.message || String(err);
+      logger.warn(`Intento ${attempt}/${maxAttempts}: Error conectando a MySQL. ${message}. Reintentando en ${delayMs / 1000}s...`);
       await new Promise(resolve => setTimeout(resolve, delayMs));
     }
   }
