@@ -14,6 +14,7 @@ const appointmentRoutes = require('./routes/appointments');
 const serviceRoutes = require('./routes/services');
 const clientRoutes = require('./routes/clients');
 const adminRoutes = require('./routes/admin');
+const { migrate } = require('./middleware/migrate');
 
 const app = express();
 
@@ -72,6 +73,8 @@ async function startServer() {
     logger.error('Error conectando a MySQL:', err.message);
     process.exit(1);
   }
+
+  await migrate();
 
   app.listen(PORT, () => {
     logger.info(`Servidor backend corriendo en puerto ${PORT} [${process.env.NODE_ENV || 'development'}]`);

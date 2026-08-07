@@ -9,6 +9,7 @@
     "start:pm2": "pm2 start ecosystem.config.js",
     "db:setup": "node scripts/setup-db.js",
     "db:seed": "node scripts/seed-db.js",
+    "db:migrate": "node scripts/setup-db.js && node scripts/seed-db.js",
     "test": "jest --passWithNoTests",
     "test:coverage": "jest --coverage"
   },

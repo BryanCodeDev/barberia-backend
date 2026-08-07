@@ -2,18 +2,20 @@ const mysql = require('mysql2/promise');
 require('dotenv').config();
 
 async function setupDatabase() {
+  const dbName = process.env.DB_NAME || process.env.MYSQL_DATABASE || 'barber_trebol';
   const connection = await mysql.createConnection({
-    host: process.env.DB_HOST || 'localhost',
-    port: parseInt(process.env.DB_PORT, 10) || 3306,
-    user: process.env.DB_USER || 'root',
-    password: process.env.DB_PASSWORD || '',
+    host: process.env.DB_HOST || process.env.MYSQLHOST || 'localhost',
+    port: parseInt(process.env.DB_PORT, 10) || parseInt(process.env.MYSQLPORT, 10) || 3306,
+    user: process.env.DB_USER || process.env.MYSQLUSER || 'root',
+    password: process.env.DB_PASSWORD || process.env.MYSQLPASSWORD || '',
   });
 
-  await connection.query(`CREATE DATABASE IF NOT EXISTS \`${process.env.DB_NAME || 'barberia_camilo'}\``);
-  await connection.query(`USE \`${process.env.DB_NAME || 'barberia_camilo'}\``);
+  await connection.query(`CREATE DATABASE IF NOT EXISTS \`${dbName}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`);
+  await connection.query(`USE \`${dbName}\``);
 
   const fs = require('fs');
-  const schemaSQL = fs.readFileSync(require('path').join(__dirname, '..', 'database', 'schema.sql'), 'utf8');
+  const schemaPath = require('path').join(__dirname, '..', 'database', 'schema.clean.sql');
+  const schemaSQL = fs.readFileSync(schemaPath, 'utf8');
   const statements = schemaSQL.split(';').filter((s) => s.trim());
 
   for (const statement of statements) {
