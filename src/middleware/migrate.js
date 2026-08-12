@@ -2,10 +2,18 @@ const pool = require('../config/database');
 const fs = require('fs');
 const path = require('path');
 
+function resolveDbPath(filename) {
+  const fromRoot = path.join(process.cwd(), 'database', filename);
+  if (fs.existsSync(fromRoot)) {
+    return fromRoot;
+  }
+  return path.join(__dirname, '..', 'database', filename);
+}
+
 async function migrate() {
   try {
     const connection = await pool.getConnection();
-    const schemaPath = path.join(__dirname, '..', 'database', 'schema.clean.sql');
+    const schemaPath = resolveDbPath('schema.clean.sql');
     const schemaSQL = fs.readFileSync(schemaPath, 'utf8');
     const statements = schemaSQL.split(';').filter((s) => s.trim());
 
@@ -17,7 +25,7 @@ async function migrate() {
 
     const [services] = await connection.query('SELECT COUNT(*) AS count FROM services');
     if (services[0].count === 0) {
-      const seedPath = path.join(__dirname, '..', 'database', 'seed.clean.sql');
+      const seedPath = resolveDbPath('seed.clean.sql');
       const seedSQL = fs.readFileSync(seedPath, 'utf8');
       const seedStatements = seedSQL.split(';').filter((s) => s.trim());
 
