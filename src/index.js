@@ -26,7 +26,7 @@ const { migrate } = require('./middleware/migrate');
 
 const app = express();
 
-const corsOrigins = (process.env.FRONTEND_URL || 'http://localhost:3000')
+const corsOrigins = (process.env.FRONTEND_URL || 'http://localhost:5173')
   .split(',')
   .map((s) => s.trim());
 
@@ -74,6 +74,11 @@ app.use(errorHandler);
 const PORT = process.env.PORT || 3001;
 
 async function waitForDatabase() {
+  if (!process.env.MYSQL_URL && !process.env.DB_HOST && !process.env.MYSQLHOST) {
+    logger.error('No hay configuración de base de datos. Definí MYSQL_URL o DB_HOST/MYSQLHOST.');
+    process.exit(1);
+  }
+
   const maxAttempts = 40;
   const delayMs = 3000;
 
@@ -95,13 +100,8 @@ async function waitForDatabase() {
 }
 
 async function startServer() {
-  try {
-    await waitForDatabase();
-    await migrate();
-  } catch (err) {
-    logger.error('Fallo en inicializacion del servidor', err);
-    process.exit(1);
-  }
+  await waitForDatabase();
+  await migrate();
 
   const server = app.listen(PORT, () => {
     logger.info(`Servidor backend corriendo en puerto ${PORT} [${process.env.NODE_ENV || 'development'}]`);
