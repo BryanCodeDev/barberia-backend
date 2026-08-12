@@ -1,0 +1,11 @@
+[build]
+  command = "cd backend && npm ci"
+  publish = "backend"
+
+[[services]]
+  name = "barber-trebol-api"
+  command = "cd backend && npm start"
+  port = 3001
+  healthcheck = "http://localhost:3001/api/health"
+  restart = "on-failure"
+  env = { NODE_ENV = "production" }
