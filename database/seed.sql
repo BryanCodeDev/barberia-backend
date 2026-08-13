@@ -32,4 +32,6 @@ INSERT INTO services (name, category, duration_minutes, price_cents, description
 ('Corte Tipo Hongo Dama', 'corte', 40, 40000, 'Corte tipo hongo para dama, moderno, práctico y con estilo.', 0);
 
 INSERT INTO admin_users (username, password_hash) VALUES
-  ('barbertrebol', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy');
+  ('barbertrebol', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy')
+ON DUPLICATE KEY UPDATE
+  password_hash = VALUES(password_hash);
