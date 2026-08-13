@@ -74,7 +74,8 @@ CREATE TABLE IF NOT EXISTS appointments (
   UNIQUE KEY uq_appointment_slot (appointment_date, appointment_time, workstation_id),
   INDEX idx_appointments_date (appointment_date),
   INDEX idx_appointments_status (status),
-  INDEX idx_appointments_client (client_id)
+  INDEX idx_appointments_client (client_id),
+  INDEX idx_appointments_date_status_workstation (appointment_date, status, workstation_id)
 );
 
 CREATE TABLE IF NOT EXISTS business_settings (

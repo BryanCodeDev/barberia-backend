@@ -38,15 +38,25 @@ app.use(cors({
 app.use(helmet());
 app.set('trust proxy', 1);
 app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
+
+app.use((req, res, next) => {
+  console.log('[MIDDLEWARE] request:', req.method, req.url);
+  next();
+});
+
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
+
+app.use((req, res, next) => {
+  next();
+});
 
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 100,
   message: { error: 'Demasiadas solicitudes, intenta de nuevo más tarde' },
 });
-app.use('/api/', limiter);
+// app.use('/api/', limiter);
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString(), env: process.env.NODE_ENV || 'development' });

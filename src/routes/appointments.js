@@ -70,7 +70,9 @@ router.post('/', [
       [result.insertId]
     );
 
-    await sendBookingConfirmation(appointment[0]);
+    sendBookingConfirmation(appointment[0]).catch((err) => {
+      console.error('Error sending booking confirmation:', err);
+    });
 
     res.status(201).json({ id: result.insertId, message: 'Cita creada exitosamente', appointment: appointment[0] });
   } catch (error) {

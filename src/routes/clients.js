@@ -6,6 +6,11 @@ require('dotenv').config();
 
 const router = express.Router();
 
+router.post('/validate-empty', validate, async (req, res) => {
+  console.log('[VALIDATE-EMPTY] hit');
+  res.status(201).json({ ok: true });
+});
+
 router.post('/', [
   body('name').trim().isLength({ min: 2, max: 100 }).withMessage('El nombre es requerido'),
   body('phone').matches(/^\d{10}$/).withMessage('El teléfono debe tener 10 dígitos'),
@@ -14,6 +19,7 @@ router.post('/', [
 ], validate, async (req, res) => {
   try {
     const { name, phone, email, notes } = req.body;
+
     const [existing] = await pool.execute('SELECT id FROM clients WHERE phone = ?', [phone]);
     if (existing.length > 0) {
       return res.status(409).json({ error: 'Ya existe un cliente con este teléfono', clientId: existing[0].id });
