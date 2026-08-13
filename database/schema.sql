@@ -124,5 +124,3 @@ CREATE TABLE IF NOT EXISTS otp_codes (
   INDEX idx_otp_phone (phone),
   INDEX idx_otp_expires (expires_at)
 );
-
-ALTER TABLE notifications MODIFY COLUMN appointment_id INT NULL;

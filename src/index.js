@@ -116,7 +116,7 @@ app.get('/api/business-settings', async (req, res) => {
 app.patch('/api/business-settings', authenticateToken, async (req, res) => {
   try {
     const allowed = [
-      'business_name', 'barber_name', 'address', 'phone', 'whatsapp_number', 'email',
+      'business_name', 'address', 'phone', 'whatsapp_number', 'email',
       'timezone', 'max_advance_booking_days', 'min_cancel_hours', 'buffer_minutes_between_appointments'
     ];
     const updates = [];
