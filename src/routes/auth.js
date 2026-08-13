@@ -144,6 +144,8 @@ router.post('/client/verify-otp', async (req, res) => {
       });
     }
 
+    await pool.execute('UPDATE clients SET phone_verified = 1 WHERE id = ?', [client.id]);
+
     const token = jwt.sign(
       { clientId: client.id, phone: client.phone },
       process.env.JWT_SECRET,
@@ -158,6 +160,73 @@ router.post('/client/verify-otp', async (req, res) => {
     });
   } catch (error) {
     console.error('Error verifying OTP:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+router.post('/client/google', async (req, res) => {
+  try {
+    const { id_token } = req.body;
+
+    if (!id_token || typeof id_token !== 'string') {
+      return res.status(400).json({ error: 'Token de Google requerido' });
+    }
+
+    const googleResponse = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(id_token)}`);
+    if (!googleResponse.ok) {
+      return res.status(401).json({ error: 'Token de Google inválido' });
+    }
+
+    const googleData = await googleResponse.json();
+    const email = googleData.email;
+    const name = googleData.name;
+    const googleId = googleData.sub;
+
+    if (!email || !googleId) {
+      return res.status(400).json({ error: 'No se pudo obtener información de Google' });
+    }
+
+    const [clientRows] = await pool.execute(
+      'SELECT id, name, phone, email, phone_verified FROM clients WHERE google_id = ? OR email = ?',
+      [googleId, email]
+    );
+
+    let client = clientRows[0];
+
+    if (!client) {
+      const [insertResult] = await pool.execute(
+        'INSERT INTO clients (name, email, google_id, phone_verified) VALUES (?, ?, ?, 0)',
+        [name, email, googleId]
+      );
+      client = {
+        id: insertResult.insertId,
+        name,
+        phone: null,
+        email,
+        phone_verified: 0,
+      };
+    } else if (!client.phone_verified || !client.phone) {
+      return res.status(200).json({
+        needs_phone_verification: true,
+        client_id: client.id,
+        message: 'Verifica tu número de teléfono para continuar',
+      });
+    }
+
+    const token = jwt.sign(
+      { clientId: client.id, phone: client.phone },
+      process.env.JWT_SECRET,
+      { expiresIn: '24h' }
+    );
+
+    res.json({
+      id: client.id,
+      name: client.name,
+      phone: client.phone,
+      token,
+    });
+  } catch (error) {
+    console.error('Google login error:', error);
     res.status(500).json({ error: 'Error interno del servidor' });
   }
 });

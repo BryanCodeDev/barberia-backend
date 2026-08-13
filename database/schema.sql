@@ -42,12 +42,15 @@ CREATE TABLE IF NOT EXISTS clients (
   name VARCHAR(100) NOT NULL,
   phone VARCHAR(20) NOT NULL,
   email VARCHAR(255) NULL,
+  google_id VARCHAR(255) NULL,
+  phone_verified TINYINT(1) DEFAULT 0,
   notes TEXT NULL,
   total_visits INT DEFAULT 0,
   last_visit DATE NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  UNIQUE KEY uk_clients_phone (phone)
+  UNIQUE KEY uk_clients_phone (phone),
+  UNIQUE KEY uk_clients_google_id (google_id)
 );
 
 CREATE TABLE IF NOT EXISTS appointments (

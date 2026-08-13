@@ -87,8 +87,10 @@ router.get('/appointments', async (req, res) => {
       params.push(`%${search}%`, `%${search}%`);
     }
 
-    query += ' ORDER BY a.appointment_date DESC, a.appointment_time DESC LIMIT ? OFFSET ?';
-    params.push(limitNum, offset);
+    const safeLimit = Math.max(1, Math.min(limitNum, 100));
+    const safeOffset = Math.max(0, offset);
+
+    query += ` ORDER BY a.appointment_date DESC, a.appointment_time DESC LIMIT ${safeLimit} OFFSET ${safeOffset}`;
 
     const [rows] = await pool.execute(query, params);
     res.json(rows);
