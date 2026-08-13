@@ -13,7 +13,7 @@ function resolveDbPath(filename) {
 async function migrate() {
   try {
     const connection = await pool.getConnection();
-    const schemaPath = resolveDbPath('schema.clean.sql');
+    const schemaPath = resolveDbPath('schema.sql');
     const schemaSQL = fs.readFileSync(schemaPath, 'utf8');
     const statements = schemaSQL.split(';').filter((s) => s.trim());
 
@@ -25,7 +25,7 @@ async function migrate() {
 
     const [services] = await connection.query('SELECT COUNT(*) AS count FROM services');
     if (services[0].count === 0) {
-      const seedPath = resolveDbPath('seed.clean.sql');
+      const seedPath = resolveDbPath('seed.sql');
       const seedSQL = fs.readFileSync(seedPath, 'utf8');
       const seedStatements = seedSQL.split(';').filter((s) => s.trim());
 

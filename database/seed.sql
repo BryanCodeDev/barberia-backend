@@ -1,12 +1,10 @@
 USE barber_trebol;
 
+DELETE FROM barbers WHERE name IN ('Marco Rivas', 'Juan José Henríquez');
+
 INSERT INTO barbers (name, email, phone, is_active) VALUES
   ('Marco Rivas', 'marco@barbertrebol.com', '+57 317 368 1490', 1),
-  ('Juan José Henríquez', 'juanjose@barbertrebol.com', '+57 300 123 4567', 1)
-ON DUPLICATE KEY UPDATE
-  email = VALUES(email),
-  phone = VALUES(phone),
-  is_active = VALUES(is_active);
+  ('Juan José Henríquez', 'juanjose@barbertrebol.com', '+57 300 123 4567', 1);
 
 SET @marco_id = (SELECT id FROM barbers WHERE name = 'Marco Rivas');
 SET @juan_id = (SELECT id FROM barbers WHERE name = 'Juan José Henríquez');

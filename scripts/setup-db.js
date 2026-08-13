@@ -14,7 +14,7 @@ async function setupDatabase() {
   await connection.query(`USE \`${dbName}\``);
 
   const fs = require('fs');
-  const schemaPath = require('path').join(__dirname, '..', 'database', 'schema.clean.sql');
+  const schemaPath = require('path').join(__dirname, '..', 'database', 'schema.sql');
   const schemaSQL = fs.readFileSync(schemaPath, 'utf8');
   const statements = schemaSQL.split(';').filter((s) => s.trim());
 

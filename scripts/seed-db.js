@@ -12,7 +12,7 @@ async function seedDatabase() {
   });
 
   const fs = require('fs');
-  const seedSQL = fs.readFileSync(require('path').join(__dirname, '..', 'database', 'seed.clean.sql'), 'utf8');
+  const seedSQL = fs.readFileSync(require('path').join(__dirname, '..', 'database', 'seed.sql'), 'utf8');
   const statements = seedSQL.split(';').filter((s) => s.trim());
 
   for (const statement of statements) {

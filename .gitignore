@@ -106,8 +106,8 @@ Thumbs.db
 
 # Database
 *.sql
-!database/schema.clean.sql
-!database/seed.clean.sql
+!database/schema.sql
+!database/seed.sql
 
 # PM2
 .pm2/
