@@ -31,9 +31,18 @@ const corsOrigins = (process.env.FRONTEND_URL || 'http://localhost:5173')
   .split(',')
   .map((s) => s.trim());
 
+const isAllowedOrigin = (origin) => {
+  if (!origin) return true;
+  if (corsOrigins.includes(origin)) return true;
+  if (origin === 'http://localhost:5173') return true;
+  if (origin.endsWith('.netlify.app')) return true;
+  if (origin.endsWith('.railway.app')) return true;
+  return false;
+};
+
 app.use(cors({
   origin: (origin, callback) => {
-    if (!origin || corsOrigins.includes(origin) || origin === 'http://localhost:5173') {
+    if (isAllowedOrigin(origin)) {
       callback(null, true);
     } else {
       callback(new Error('Not allowed by CORS'));
