@@ -15,7 +15,7 @@ process.on('uncaughtException', (err) => {
 
 const logger = require('./utils/logger');
 const pool = require('./config/database');
-const { authenticateToken } = require('./middleware/auth');
+const { authenticateToken, requireRole } = require('./middleware/auth');
 const errorHandler = require('./middleware/errorHandler');
 const authRoutes = require('./routes/auth');
 const appointmentRoutes = require('./routes/appointments');
