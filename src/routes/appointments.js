@@ -60,9 +60,17 @@ router.post('/', [
       return res.status(409).json({ error: 'Este horario ya no está disponible' });
     }
 
+    let barberId = null;
+    if (workstation_id) {
+      const [wsRows] = await pool.execute('SELECT barber_id FROM workstations WHERE id = ?', [workstation_id]);
+      if (wsRows.length > 0) {
+        barberId = wsRows[0].barber_id;
+      }
+    }
+
     const [result] = await pool.execute(
-      'INSERT INTO appointments (client_id, service_id, workstation_id, appointment_date, appointment_time, duration_minutes, status, client_message) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-      [client_id, service_id, workstation_id || null, appointment_date, appointment_time, duration_minutes, 'pending', client_message || '']
+      'INSERT INTO appointments (client_id, service_id, workstation_id, barber_id, appointment_date, appointment_time, duration_minutes, status, client_message) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [client_id, service_id, workstation_id || null, barberId, appointment_date, appointment_time, duration_minutes, 'pending', client_message || '']
     );
 
     const [appointment] = await pool.execute(
@@ -98,7 +106,7 @@ router.get('/my', authenticateToken, async (req, res) => {
 });
 
 router.patch('/:id/status', authenticateToken, [
-  body('status').isIn(['pending', 'confirmed', 'completed', 'cancelled', 'no_show']).withMessage('Estado inválido'),
+  body('status').isIn(['pending', 'confirmed', 'completed', 'cancelled', 'no-show']).withMessage('Estado inválido'),
   body('cancelled_reason').optional().isString(),
 ], validate, async (req, res) => {
   try {

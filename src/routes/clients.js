@@ -8,7 +8,7 @@ const router = express.Router();
 
 router.post('/validate-empty', validate, async (req, res) => {
   console.log('[VALIDATE-EMPTY] hit');
-  res.status(201).json({ ok: true });
+  res.status(200).json({ ok: true });
 });
 
 router.post('/', [

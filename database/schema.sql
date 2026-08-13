@@ -59,7 +59,7 @@ CREATE TABLE IF NOT EXISTS appointments (
   appointment_date DATE NOT NULL,
   appointment_time TIME NOT NULL,
   duration_minutes INT NOT NULL,
-  status ENUM('pending','confirmed','completed','cancelled','no_show') DEFAULT 'pending',
+  status ENUM('pending','confirmed','completed','cancelled','no-show') DEFAULT 'pending',
   client_message TEXT NULL,
   source ENUM('web','whatsapp','phone','walk-in') DEFAULT 'web',
   reminder_sent TINYINT(1) DEFAULT 0,

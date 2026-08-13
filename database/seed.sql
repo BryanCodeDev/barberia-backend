@@ -1,5 +1,7 @@
 USE barber_trebol;
 
+DELETE FROM business_settings;
+
 INSERT INTO business_settings (business_name, address, phone, whatsapp_number, email)
 VALUES (
   'Barber Trebol',
@@ -7,13 +9,7 @@ VALUES (
   '+57 300 123 4567',
   '573001234567',
   'contacto@barbertrebol.com'
-)
-ON DUPLICATE KEY UPDATE
-  business_name = VALUES(business_name),
-  address = VALUES(address),
-  phone = VALUES(phone),
-  whatsapp_number = VALUES(whatsapp_number),
-  email = VALUES(email);
+);
 
 DELETE FROM barbers WHERE name IN ('Marco Rivas', 'Juan José Henríquez');
 

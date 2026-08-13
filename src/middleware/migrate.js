@@ -40,6 +40,7 @@ async function migrate() {
     console.log('Migration completed');
   } catch (err) {
     console.error('Migration error:', err);
+    throw err;
   } finally {
     connection.release();
   }

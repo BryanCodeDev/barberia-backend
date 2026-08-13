@@ -32,7 +32,13 @@ const corsOrigins = (process.env.FRONTEND_URL || 'http://localhost:5173')
   .map((s) => s.trim());
 
 app.use(cors({
-  origin: true,
+  origin: (origin, callback) => {
+    if (!origin || corsOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true,
 }));
 app.use(helmet());
@@ -92,7 +98,7 @@ app.patch('/api/business-settings', authenticateToken, async (req, res) => {
     if (updates.length === 0) {
       return res.status(400).json({ error: 'No hay campos para actualizar' });
     }
-    values.push(new Date().toISOString().split('T')[0]);
+    values.push(new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().split('T')[0]);
     await pool.execute(`UPDATE business_settings SET ${updates.join(', ')}, updated_at = ? WHERE id = (SELECT id FROM business_settings ORDER BY id DESC LIMIT 1)`, values);
     const [rows] = await pool.execute('SELECT * FROM business_settings ORDER BY id DESC LIMIT 1');
     res.json(rows[0]);

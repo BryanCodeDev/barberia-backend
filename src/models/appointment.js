@@ -34,11 +34,12 @@ const getAppointmentsByClient = async (clientId) => {
 };
 
 const updateAppointmentStatus = async (id, status, cancelledReason = null) => {
-  const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
+  const now = new Date(Date.now() - new Date().getTimezoneOffset() * 60000);
+  const nowStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
   if (status === 'cancelled') {
     await pool.execute(
       'UPDATE appointments SET status = ?, cancelled_reason = ?, cancelled_at = ? WHERE id = ?',
-      [status, cancelledReason, now, id]
+      [status, cancelledReason, nowStr, id]
     );
   } else {
     await pool.execute(
@@ -68,7 +69,8 @@ const getAppointmentsByStatus = async (status) => {
 };
 
 const getTodayAppointments = async () => {
-  const today = new Date().toISOString().split('T')[0];
+  const now = new Date();
+  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
   return getAppointmentsByDate(today);
 };
 
@@ -77,7 +79,8 @@ const getStats = async () => {
   const [pending] = await pool.execute("SELECT COUNT(*) AS count FROM appointments WHERE status = 'pending'");
   const [confirmed] = await pool.execute("SELECT COUNT(*) AS count FROM appointments WHERE status = 'confirmed'");
   const [cancelled] = await pool.execute("SELECT COUNT(*) AS count FROM appointments WHERE status = 'cancelled'");
-  const today = new Date().toISOString().split('T')[0];
+  const now = new Date();
+  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
   const [todayCount] = await pool.execute('SELECT COUNT(*) AS count FROM appointments WHERE appointment_date = ?', [today]);
 
   return {
