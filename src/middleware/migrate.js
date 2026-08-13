@@ -15,9 +15,9 @@ async function migrate() {
   try {
     const schemaPath = resolveDbPath('schema.sql');
     const schemaSQL = fs.readFileSync(schemaPath, 'utf8');
-    const statements = schemaSQL.split(';').filter((s) => s.trim());
+    const schemaStatements = schemaSQL.split(';').filter((s) => s.trim());
 
-    for (const statement of statements) {
+    for (const statement of schemaStatements) {
       if (statement.trim()) {
         await connection.query(statement);
       }
@@ -29,12 +29,20 @@ async function migrate() {
       const seedSQL = fs.readFileSync(seedPath, 'utf8');
       const seedStatements = seedSQL.split(';').filter((s) => s.trim());
 
-      for (const statement of seedStatements) {
-        if (statement.trim()) {
-          await connection.query(statement);
+      await connection.beginTransaction();
+      try {
+        for (const statement of seedStatements) {
+          if (statement.trim()) {
+            await connection.query(statement);
+          }
         }
+        await connection.commit();
+        console.log('Seed data inserted');
+      } catch (seedErr) {
+        await connection.rollback();
+        console.error('Seed error (rolled back):', seedErr);
+        throw seedErr;
       }
-      console.log('Seed data inserted');
     }
 
     console.log('Migration completed');

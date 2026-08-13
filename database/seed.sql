@@ -1,6 +1,6 @@
 USE barber_trebol;
 
-DELETE FROM business_settings;
+DELETE FROM business_settings WHERE id > 0;
 
 INSERT INTO business_settings (business_name, address, phone, whatsapp_number, email)
 VALUES (
@@ -11,7 +11,7 @@ VALUES (
   'contacto@barbertrebol.com'
 );
 
-DELETE FROM barbers WHERE name IN ('Marco Rivas', 'Juan José Henríquez');
+DELETE FROM barbers WHERE id > 0 AND name IN ('Marco Rivas', 'Juan José Henríquez');
 
 INSERT INTO barbers (name, email, phone, is_active) VALUES
   ('Marco Rivas', 'marco@barbertrebol.com', '+57 317 368 1490', 1),
@@ -25,7 +25,7 @@ INSERT INTO workstations (name, barber_id, is_active) VALUES
   ('Puesto 1 - Marco Rivas', @marco_id, 1),
   ('Puesto 2 - Juan José Henríquez', @juan_id, 1);
 
-DELETE FROM services;
+DELETE FROM services WHERE id > 0;
 
 INSERT INTO services (name, category, duration_minutes, price_cents, description, is_popular) VALUES
 ('Corte Clásico', 'corte', 35, 28000, 'Corte clásico con técnica tradicional, líneas perfectas y acabado impecable.', 1),

@@ -1,28 +1,44 @@
 const mysql = require('mysql2/promise');
+const fs = require('fs');
+const path = require('path');
 require('dotenv').config();
+
+const DB_CONFIG = {
+  host: process.env.DB_HOST || process.env.MYSQLHOST || 'localhost',
+  port: parseInt(process.env.DB_PORT, 10) || parseInt(process.env.MYSQLPORT, 10) || 3306,
+  user: process.env.DB_USER || process.env.MYSQLUSER || 'root',
+  password: process.env.DB_PASSWORD || process.env.MYSQLPASSWORD || '',
+};
 
 async function seedDatabase() {
   const dbName = process.env.DB_NAME || process.env.MYSQL_DATABASE || 'barber_trebol';
   const connection = await mysql.createConnection({
-    host: process.env.DB_HOST || process.env.MYSQLHOST || 'localhost',
-    port: parseInt(process.env.DB_PORT, 10) || parseInt(process.env.MYSQLPORT, 10) || 3306,
-    user: process.env.DB_USER || process.env.MYSQLUSER || 'root',
-    password: process.env.DB_PASSWORD || process.env.MYSQLPASSWORD || '',
+    ...DB_CONFIG,
     database: dbName,
   });
 
-  const fs = require('fs');
-  const seedSQL = fs.readFileSync(require('path').join(__dirname, '..', 'database', 'seed.sql'), 'utf8');
-  const statements = seedSQL.split(';').filter((s) => s.trim());
+  try {
+    const seedPath = path.join(__dirname, '..', 'database', 'seed.sql');
+    const seedSQL = fs.readFileSync(seedPath, 'utf8');
+    const statements = seedSQL.split(';').filter((s) => s.trim());
 
-  for (const statement of statements) {
-    if (statement.trim()) {
-      await connection.query(statement);
+    await connection.beginTransaction();
+    try {
+      for (const statement of statements) {
+        if (statement.trim()) {
+          await connection.query(statement);
+        }
+      }
+      await connection.commit();
+      console.log('Database seeded successfully');
+    } catch (seedErr) {
+      await connection.rollback();
+      console.error('Seed error (rolled back):', seedErr);
+      throw seedErr;
     }
+  } finally {
+    await connection.end();
   }
-
-  console.log('Database seeded successfully');
-  await connection.end();
 }
 
 seedDatabase().catch((err) => {
