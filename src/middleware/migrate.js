@@ -81,12 +81,17 @@ async function migrate() {
   }
 }
 
+function resolveHost(host) {
+  if (!host || host === 'localhost') return '127.0.0.1';
+  return host;
+}
+
 async function dropAndMigrate() {
   const schemaPath = resolveDbPath('schema.sql');
   const schemaSQL = fs.readFileSync(schemaPath, 'utf8');
 
   const adminConn = await mysql.createConnection({
-    host: process.env.DB_HOST || process.env.MYSQLHOST || '127.0.0.1',
+    host: resolveHost(process.env.DB_HOST || process.env.MYSQLHOST),
     port: parseInt(process.env.DB_PORT, 10) || parseInt(process.env.MYSQLPORT, 10) || 3306,
     user: process.env.DB_USER || process.env.MYSQLUSER || 'root',
     password: process.env.DB_PASSWORD || process.env.MYSQLPASSWORD || '',

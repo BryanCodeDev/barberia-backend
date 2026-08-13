@@ -31,7 +31,6 @@ const pool = mysql.createPool({
   queueLimit: 50,
   charset: 'utf8mb4',
   connectTimeout: 10000,
-  acquireTimeout: 30000,
 });
 
 pool.on('connection', (conn) => {
