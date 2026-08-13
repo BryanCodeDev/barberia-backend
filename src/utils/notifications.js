@@ -4,7 +4,7 @@ const sendNotification = async (appointmentId, channel, recipient, message) => {
   try {
     await pool.execute(
       'INSERT INTO notifications (appointment_id, channel, recipient, status) VALUES (?, ?, ?, ?)',
-      [appointmentId, channel, recipient, 'pending']
+      [appointmentId || null, channel, recipient, 'pending']
     );
     console.log(`[NOTIFICATION] ${channel} to ${recipient}: ${message}`);
     return true;
@@ -38,4 +38,9 @@ const sendReminder = async (appointment) => {
   await sendNotification(appointment.id, 'whatsapp', appointment.client_phone, message);
 };
 
-module.exports = { sendNotification, sendBookingConfirmation, sendReminder };
+const sendOtpCode = async (phone, code) => {
+  const message = `[Barber Trebol] Tu código de verificación es: ${code}. Código válido por 5 minutos.`;
+  return sendNotification(null, 'whatsapp', phone, message);
+};
+
+module.exports = { sendNotification, sendBookingConfirmation, sendReminder, sendOtpCode };

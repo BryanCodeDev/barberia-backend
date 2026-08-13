@@ -103,7 +103,7 @@ CREATE TABLE IF NOT EXISTS admin_users (
 
 CREATE TABLE IF NOT EXISTS notifications (
   id INT AUTO_INCREMENT PRIMARY KEY,
-  appointment_id INT NOT NULL,
+  appointment_id INT NULL,
   channel ENUM('whatsapp','sms','email') NOT NULL,
   recipient VARCHAR(255) NOT NULL,
   status ENUM('sent','failed','pending') DEFAULT 'pending',
@@ -112,3 +112,17 @@ CREATE TABLE IF NOT EXISTS notifications (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (appointment_id) REFERENCES appointments(id) ON DELETE CASCADE
 );
+
+CREATE TABLE IF NOT EXISTS otp_codes (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  phone VARCHAR(20) NOT NULL,
+  code VARCHAR(6) NOT NULL,
+  expires_at TIMESTAMP NOT NULL,
+  attempts INT DEFAULT 0,
+  used TINYINT(1) DEFAULT 0,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_otp_phone (phone),
+  INDEX idx_otp_expires (expires_at)
+);
+
+ALTER TABLE notifications MODIFY COLUMN appointment_id INT NULL;

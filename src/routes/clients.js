@@ -44,7 +44,13 @@ router.get('/:id', async (req, res) => {
     if (client.length === 0) {
       return res.status(404).json({ error: 'Cliente no encontrado' });
     }
-    res.json(client[0]);
+
+    const [appointments] = await pool.execute(
+      'SELECT a.*, s.name AS service_name, s.duration_minutes AS service_duration, s.price_cents, w.name AS workstation_name, b.name AS barber_name FROM appointments a LEFT JOIN services s ON a.service_id = s.id LEFT JOIN workstations w ON a.workstation_id = w.id LEFT JOIN barbers b ON a.barber_id = b.id WHERE a.client_id = ? ORDER BY a.appointment_date DESC, a.appointment_time DESC',
+      [id]
+    );
+
+    res.json({ ...client[0], appointments });
   } catch (error) {
     console.error('Error fetching client:', error);
     res.status(500).json({ error: 'Error interno del servidor' });
