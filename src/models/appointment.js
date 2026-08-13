@@ -53,10 +53,8 @@ const deleteAppointment = async (id) => {
 };
 
 const getOccupiedTimeSlots = async (date, workstationId = null) => {
-  const query = workstationId
-    ? 'SELECT appointment_time FROM appointments WHERE appointment_date = ? AND status != ? AND workstation_id = ?'
-    : 'SELECT appointment_time FROM appointments WHERE appointment_date = ? AND status != ?';
-  const params = workstationId ? [date, 'cancelled', workstationId] : [date, 'cancelled'];
+  const query = 'SELECT appointment_time FROM appointments WHERE appointment_date = ? AND status != ? AND (workstation_id = ? OR ? IS NULL)';
+  const params = [date, 'cancelled', workstationId, workstationId];
   const [rows] = await pool.execute(query, params);
   return rows.map((row) => row.appointment_time);
 };

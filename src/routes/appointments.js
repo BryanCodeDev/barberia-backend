@@ -40,7 +40,7 @@ router.post('/', [
   body('service_id').isInt().withMessage('El servicio es requerido'),
   body('appointment_date').isISO8601().withMessage('La fecha es requerida'),
   body('appointment_time').matches(/^([01]\d|2[0-3]):[0-5]\d$/).withMessage('La hora es requerida'),
-  body('workstation_id').optional().isInt(),
+  body('workstation_id').optional({ nullable: true }).isInt(),
   body('client_message').optional().isString().isLength({ max: 500 }),
 ], validate, async (req, res) => {
   try {
@@ -53,8 +53,8 @@ router.post('/', [
     const duration_minutes = serviceResult[0].duration_minutes;
 
     const [occupied] = await pool.execute(
-      'SELECT id FROM appointments WHERE appointment_date = ? AND appointment_time = ? AND status != ? AND workstation_id = ?',
-      [appointment_date, appointment_time, 'cancelled', workstation_id]
+      'SELECT id FROM appointments WHERE appointment_date = ? AND appointment_time = ? AND status != ? AND (workstation_id = ? OR ? IS NULL)',
+      [appointment_date, appointment_time, 'cancelled', workstation_id, workstation_id]
     );
     if (occupied.length > 0) {
       return res.status(409).json({ error: 'Este horario ya no está disponible' });

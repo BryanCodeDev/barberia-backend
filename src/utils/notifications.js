@@ -18,6 +18,11 @@ const sendBookingConfirmation = async (appointment) => {
   const [settingsResult] = await pool.execute('SELECT * FROM business_settings LIMIT 1');
   const settings = settingsResult[0];
 
+  if (!settings) {
+    console.warn('No hay configuración de negocio, saltando notificaciones de booking');
+    return;
+  }
+
   const message = `Hola ${appointment.client_name}, tu cita para "${appointment.service_name}" el ${appointment.appointment_date} a las ${appointment.appointment_time} ha sido confirmada. Te contactaremos pronto.`;
 
   await sendNotification(appointment.id, 'whatsapp', appointment.client_phone, message);

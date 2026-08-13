@@ -15,8 +15,8 @@ const getAvailableTimeSlots = async (date, serviceDurationMinutes, workstationId
   }
 
   const [occupiedResult] = await pool.execute(
-    'SELECT appointment_time FROM appointments WHERE appointment_date = ? AND status != ? AND workstation_id = ?',
-    [date, 'cancelled', workstationId]
+    'SELECT appointment_time FROM appointments WHERE appointment_date = ? AND status != ? AND (workstation_id = ? OR ? IS NULL)',
+    [date, 'cancelled', workstationId, workstationId]
   );
 
   const occupiedTimes = occupiedResult.map((row) => row.appointment_time);
