@@ -122,8 +122,5 @@ VALUES (
 );
 
 INSERT INTO workstations (name, is_active) VALUES
-  ('Silla 1', 1),
-  ('Silla 2', 1),
-  ('Silla 3', 1),
-  ('Silla 4', 1),
-  ('Estación VIP', 1);
+  ('Puesto 1 - Marco Rivas', 1),
+  ('Puesto 2 - Juan José Henríquez', 1);
