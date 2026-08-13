@@ -1,7 +1,5 @@
 const express = require('express');
-const { body, validationResult } = require('express-validator');
 const pool = require('../config/database');
-const { validate } = require('../middleware/validate');
 const { authenticateToken } = require('../middleware/auth');
 const { getAvailableTimeSlots } = require('../utils/availability');
 const { sendBookingConfirmation } = require('../utils/notifications');
@@ -35,16 +33,28 @@ router.get('/available-slots', async (req, res) => {
   }
 });
 
-router.post('/', [
-  body('client_id').isInt().withMessage('El cliente es requerido'),
-  body('service_id').isInt().withMessage('El servicio es requerido'),
-  body('appointment_date').isISO8601().withMessage('La fecha es requerida'),
-  body('appointment_time').matches(/^([01]\d|2[0-3]):[0-5]\d$/).withMessage('La hora es requerida'),
-  body('workstation_id').optional({ nullable: true }).isInt(),
-  body('client_message').optional().isString().isLength({ max: 500 }),
-], validate, async (req, res) => {
+router.post('/', async (req, res) => {
   try {
     const { client_id, service_id, workstation_id, appointment_date, appointment_time, client_message } = req.body;
+
+    if (!client_id || !Number.isInteger(Number(client_id))) {
+      return res.status(400).json({ error: 'El cliente es requerido' });
+    }
+    if (!service_id || !Number.isInteger(Number(service_id))) {
+      return res.status(400).json({ error: 'El servicio es requerido' });
+    }
+    if (!appointment_date || !/^\d{4}-\d{2}-\d{2}$/.test(String(appointment_date))) {
+      return res.status(400).json({ error: 'La fecha es requerida' });
+    }
+    if (!appointment_time || !/^([01]\d|2[0-3]):[0-5]\d$/.test(String(appointment_time))) {
+      return res.status(400).json({ error: 'La hora es requerida' });
+    }
+    if (workstation_id !== undefined && workstation_id !== null && !Number.isInteger(Number(workstation_id))) {
+      return res.status(400).json({ error: 'La estación es inválida' });
+    }
+    if (client_message && typeof client_message !== 'string') {
+      return res.status(400).json({ error: 'El mensaje es inválido' });
+    }
 
     const [serviceResult] = await pool.execute('SELECT duration_minutes FROM services WHERE id = ? AND is_active = 1', [service_id]);
     if (serviceResult.length === 0) {
@@ -54,7 +64,7 @@ router.post('/', [
 
     const [occupied] = await pool.execute(
       'SELECT id FROM appointments WHERE appointment_date = ? AND appointment_time = ? AND status != ? AND (workstation_id = ? OR ? IS NULL)',
-      [appointment_date, appointment_time, 'cancelled', workstation_id, workstation_id]
+      [appointment_date, appointment_time, 'cancelled', workstation_id || null, workstation_id || null]
     );
     if (occupied.length > 0) {
       return res.status(409).json({ error: 'Este horario ya no está disponible' });
@@ -105,13 +115,15 @@ router.get('/my', authenticateToken, async (req, res) => {
   }
 });
 
-router.patch('/:id/status', authenticateToken, [
-  body('status').isIn(['pending', 'confirmed', 'completed', 'cancelled', 'no-show']).withMessage('Estado inválido'),
-  body('cancelled_reason').optional().isString(),
-], validate, async (req, res) => {
+router.patch('/:id/status', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
     const { status, cancelled_reason } = req.body;
+
+    const allowedStatuses = ['pending', 'confirmed', 'completed', 'cancelled', 'no-show'];
+    if (!status || !allowedStatuses.includes(status)) {
+      return res.status(400).json({ error: 'Estado inválido' });
+    }
 
     const [existing] = await pool.execute('SELECT * FROM appointments WHERE id = ?', [id]);
     if (existing.length === 0) {

@@ -1,9 +1,7 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const { body, validationResult } = require('express-validator');
 const pool = require('../config/database');
-const { validate } = require('../middleware/validate');
 const { sendOtpCode } = require('../utils/notifications');
 require('dotenv').config();
 
@@ -13,14 +11,18 @@ const OTP_EXPIRY_MINUTES = 5;
 const OTP_MAX_ATTEMPTS = 5;
 const OTP_RESEND_COOLDOWN_SECONDS = 60;
 
-router.post('/login', [
-  body('username').notEmpty().withMessage('El usuario es requerido'),
-  body('password').notEmpty().withMessage('La contraseña es requerida'),
-], validate, async (req, res) => {
+router.post('/login', async (req, res) => {
   try {
     const { username, password } = req.body;
 
-    const [rows] = await pool.execute('SELECT * FROM admin_users WHERE username = ? AND is_active = 1', [username]);
+    if (!username || !username.trim()) {
+      return res.status(400).json({ error: 'El usuario es requerido' });
+    }
+    if (!password || !password.trim()) {
+      return res.status(400).json({ error: 'La contraseña es requerida' });
+    }
+
+    const [rows] = await pool.execute('SELECT * FROM admin_users WHERE username = ? AND is_active = 1', [username.trim()]);
     const admin = rows[0];
 
     if (!admin) {
@@ -45,15 +47,17 @@ router.post('/login', [
   }
 });
 
-router.post('/client/request-otp', [
-  body('phone').matches(/^\d{10}$/).withMessage('El teléfono debe tener 10 dígitos'),
-], validate, async (req, res) => {
+router.post('/client/request-otp', async (req, res) => {
   try {
     const { phone } = req.body;
 
+    if (!phone || !/^\d{10}$/.test(String(phone).trim())) {
+      return res.status(400).json({ error: 'El teléfono debe tener 10 dígitos' });
+    }
+
     const [recent] = await pool.execute(
       'SELECT id FROM otp_codes WHERE phone = ? AND expires_at > NOW() AND used = 0 AND created_at > DATE_SUB(NOW(), INTERVAL ? SECOND)',
-      [phone, OTP_RESEND_COOLDOWN_SECONDS]
+      [String(phone).trim(), OTP_RESEND_COOLDOWN_SECONDS]
     );
     if (recent.length > 0) {
       return res.status(429).json({
@@ -63,14 +67,14 @@ router.post('/client/request-otp', [
 
     await pool.execute(
       'DELETE FROM otp_codes WHERE phone = ? AND (expires_at <= NOW() OR used = 1)',
-      [phone]
+      [String(phone).trim()]
     );
 
     const code = Math.floor(100000 + Math.random() * 900000).toString();
 
     await pool.execute(
       'INSERT INTO otp_codes (phone, code, expires_at) VALUES (?, ?, DATE_ADD(NOW(), INTERVAL ? MINUTE))',
-      [phone, code, OTP_EXPIRY_MINUTES]
+      [String(phone).trim(), code, OTP_EXPIRY_MINUTES]
     );
 
     await sendOtpCode(phone, code);
@@ -86,16 +90,20 @@ router.post('/client/request-otp', [
   }
 });
 
-router.post('/client/verify-otp', [
-  body('phone').matches(/^\d{10}$/).withMessage('El teléfono debe tener 10 dígitos'),
-  body('code').matches(/^\d{6}$/).withMessage('El código debe tener 6 dígitos'),
-], validate, async (req, res) => {
+router.post('/client/verify-otp', async (req, res) => {
   try {
     const { phone, code } = req.body;
 
+    if (!phone || !/^\d{10}$/.test(String(phone).trim())) {
+      return res.status(400).json({ error: 'El teléfono debe tener 10 dígitos' });
+    }
+    if (!code || !/^\d{6}$/.test(String(code).trim())) {
+      return res.status(400).json({ error: 'El código debe tener 6 dígitos' });
+    }
+
     const [rows] = await pool.execute(
       'SELECT * FROM otp_codes WHERE phone = ? AND used = 0 AND expires_at > NOW() ORDER BY created_at DESC LIMIT 1',
-      [phone]
+      [String(phone).trim()]
     );
 
     const otpRecord = rows[0];
@@ -109,7 +117,7 @@ router.post('/client/verify-otp', [
       return res.status(429).json({ error: `Demasiados intentos fallidos (${OTP_MAX_ATTEMPTS}). Solicita un nuevo código.` });
     }
 
-    if (otpRecord.code !== code) {
+    if (otpRecord.code !== String(code).trim()) {
       await pool.execute(
         'UPDATE otp_codes SET attempts = attempts + 1 WHERE id = ?',
         [otpRecord.id]
@@ -125,7 +133,7 @@ router.post('/client/verify-otp', [
 
     const [clientRows] = await pool.execute(
       'SELECT id, name, phone, email, total_visits, last_visit FROM clients WHERE phone = ?',
-      [phone]
+      [String(phone).trim()]
     );
 
     const client = clientRows[0];

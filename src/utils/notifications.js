@@ -23,7 +23,9 @@ const sendBookingConfirmation = async (appointment) => {
     return;
   }
 
-  const message = `Hola ${appointment.client_name}, tu cita para "${appointment.service_name}" el ${appointment.appointment_date} a las ${appointment.appointment_time} ha sido confirmada. Te contactaremos pronto.`;
+  const appointmentDate = appointment.appointment_date || '';
+  const appointmentTime = appointment.appointment_time || '';
+  const message = `Hola ${appointment.client_name}, tu cita para "${appointment.service_name}" el ${appointmentDate} a las ${appointmentTime} ha sido confirmada. Te contactaremos pronto.`;
 
   await sendNotification(appointment.id, 'whatsapp', appointment.client_phone, message);
 

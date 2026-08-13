@@ -1,33 +1,31 @@
-const express = require('express');
-const { body, validationResult } = require('express-validator');
 const pool = require('../config/database');
-const { validate } = require('../middleware/validate');
+const { authenticateToken } = require('../middleware/auth');
 require('dotenv').config();
 
 const router = express.Router();
 
-router.post('/validate-empty', validate, async (req, res) => {
-  console.log('[VALIDATE-EMPTY] hit');
-  res.status(200).json({ ok: true });
-});
-
-router.post('/', [
-  body('name').trim().isLength({ min: 2, max: 100 }).withMessage('El nombre es requerido'),
-  body('phone').matches(/^\d{10}$/).withMessage('El teléfono debe tener 10 dígitos'),
-  body('email').optional().isEmail().withMessage('Email inválido'),
-  body('notes').optional().isString().isLength({ max: 500 }),
-], validate, async (req, res) => {
+router.post('/', async (req, res) => {
   try {
     const { name, phone, email, notes } = req.body;
 
-    const [existing] = await pool.execute('SELECT id FROM clients WHERE phone = ?', [phone]);
+    if (!name || !name.trim() || name.trim().length < 2) {
+      return res.status(400).json({ error: 'El nombre es requerido' });
+    }
+    if (!phone || !/^\d{10}$/.test(String(phone).trim())) {
+      return res.status(400).json({ error: 'El teléfono debe tener 10 dígitos' });
+    }
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email).trim())) {
+      return res.status(400).json({ error: 'Email inválido' });
+    }
+
+    const [existing] = await pool.execute('SELECT id FROM clients WHERE phone = ?', [String(phone).trim()]);
     if (existing.length > 0) {
       return res.status(409).json({ error: 'Ya existe un cliente con este teléfono', clientId: existing[0].id });
     }
 
     const [result] = await pool.execute(
       'INSERT INTO clients (name, phone, email, notes) VALUES (?, ?, ?, ?)',
-      [name, phone, email || null, notes || null]
+      [name.trim(), String(phone).trim(), email ? String(email).trim() : null, notes ? String(notes).trim() : null]
     );
 
     res.status(201).json({ id: result.insertId, message: 'Cliente creado exitosamente' });
