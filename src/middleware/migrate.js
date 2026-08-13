@@ -1,4 +1,5 @@
 const pool = require('../config/database');
+const { parseDatabaseUrl } = require('../config/database');
 const fs = require('fs');
 const path = require('path');
 const mysql = require('mysql2/promise');
@@ -9,6 +10,16 @@ function resolveDbPath(filename) {
     return fromRoot;
   }
   return path.join(__dirname, '..', 'database', filename);
+}
+
+function getAdminConfig() {
+  const parsed = parseDatabaseUrl(process.env.MYSQL_URL);
+  return {
+    host: (parsed && parsed.host) || process.env.DB_HOST || process.env.MYSQLHOST || '127.0.0.1',
+    port: (parsed && parsed.port) || parseInt(process.env.DB_PORT, 10) || parseInt(process.env.MYSQLPORT, 10) || 3306,
+    user: (parsed && parsed.user) || process.env.DB_USER || process.env.MYSQLUSER || 'root',
+    password: (parsed && parsed.password) || process.env.DB_PASSWORD || process.env.MYSQLPASSWORD || '',
+  };
 }
 
 async function migrate() {
@@ -81,21 +92,12 @@ async function migrate() {
   }
 }
 
-function resolveHost(host) {
-  if (!host || host === 'localhost') return '127.0.0.1';
-  return host;
-}
-
 async function dropAndMigrate() {
   const schemaPath = resolveDbPath('schema.sql');
   const schemaSQL = fs.readFileSync(schemaPath, 'utf8');
 
-  const adminConn = await mysql.createConnection({
-    host: resolveHost(process.env.DB_HOST || process.env.MYSQLHOST),
-    port: parseInt(process.env.DB_PORT, 10) || parseInt(process.env.MYSQLPORT, 10) || 3306,
-    user: process.env.DB_USER || process.env.MYSQLUSER || 'root',
-    password: process.env.DB_PASSWORD || process.env.MYSQLPASSWORD || '',
-  });
+  const adminConfig = getAdminConfig();
+  const adminConn = await mysql.createConnection(adminConfig);
 
   try {
     await adminConn.query('DROP DATABASE IF EXISTS barber_trebol');

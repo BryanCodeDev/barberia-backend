@@ -44,3 +44,4 @@ pool.on('error', (err) => {
 });
 
 module.exports = pool;
+module.exports.parseDatabaseUrl = parseDatabaseUrl;
