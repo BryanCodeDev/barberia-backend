@@ -1,3 +1,4 @@
+const express = require('express');
 const pool = require('../config/database');
 const { authenticateToken } = require('../middleware/auth');
 require('dotenv').config();
