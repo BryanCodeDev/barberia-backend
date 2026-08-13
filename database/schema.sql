@@ -99,6 +99,8 @@ CREATE TABLE IF NOT EXISTS admin_users (
   id INT AUTO_INCREMENT PRIMARY KEY,
   username VARCHAR(50) NOT NULL UNIQUE,
   password_hash VARCHAR(255) NOT NULL,
+  role ENUM('admin','barber') DEFAULT 'admin',
+  entity_id INT NULL,
   is_active TINYINT(1) DEFAULT 1,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
@@ -127,3 +129,6 @@ CREATE TABLE IF NOT EXISTS otp_codes (
   INDEX idx_otp_phone (phone),
   INDEX idx_otp_expires (expires_at)
 );
+
+ALTER TABLE admin_users ADD COLUMN role ENUM('admin','barber') DEFAULT 'admin' AFTER password_hash;
+ALTER TABLE admin_users ADD COLUMN entity_id INT NULL AFTER role;

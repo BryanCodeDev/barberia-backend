@@ -1,6 +1,6 @@
 const express = require('express');
 const pool = require('../config/database');
-const { authenticateToken } = require('../middleware/auth');
+const { authenticateToken, requireRole } = require('../middleware/auth');
 const { getAvailableTimeSlots } = require('../utils/availability');
 const { sendBookingConfirmation } = require('../utils/notifications');
 require('dotenv').config();
@@ -115,7 +115,7 @@ router.get('/my', authenticateToken, async (req, res) => {
   }
 });
 
-router.patch('/:id/status', authenticateToken, async (req, res) => {
+router.patch('/:id/status', authenticateToken, requireRole(['admin', 'barber']), async (req, res) => {
   try {
     const { id } = req.params;
     const { status, cancelled_reason } = req.body;
@@ -128,6 +128,10 @@ router.patch('/:id/status', authenticateToken, async (req, res) => {
     const [existing] = await pool.execute('SELECT * FROM appointments WHERE id = ?', [id]);
     if (existing.length === 0) {
       return res.status(404).json({ error: 'Cita no encontrada' });
+    }
+
+    if (req.user.role === 'barber' && existing[0].barber_id !== req.user.entity_id) {
+      return res.status(403).json({ error: 'No tienes permisos para cambiar el estado de esta cita' });
     }
 
     await pool.execute(
@@ -160,12 +164,16 @@ router.get('/occupied-slots', async (req, res) => {
   }
 });
 
-router.delete('/:id', authenticateToken, async (req, res) => {
+router.delete('/:id', authenticateToken, requireRole(['admin', 'barber']), async (req, res) => {
   try {
     const { id } = req.params;
     const [existing] = await pool.execute('SELECT * FROM appointments WHERE id = ?', [id]);
     if (existing.length === 0) {
       return res.status(404).json({ error: 'Cita no encontrada' });
+    }
+
+    if (req.user.role === 'barber' && existing[0].barber_id !== req.user.entity_id) {
+      return res.status(403).json({ error: 'No tienes permisos para eliminar esta cita' });
     }
 
     await pool.execute('DELETE FROM appointments WHERE id = ?', [id]);

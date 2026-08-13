@@ -23,8 +23,8 @@ async function migrate() {
           await connection.query(statement);
         } catch (err) {
           const code = err.code || err.errno;
-          if (code === 'ER_DUP_KEYNAME' || code === 1061 || code === 'ER_DUP_ENTRY' || code === 1062 || code === 'ER_PARSE_ERROR' || code === 1064) {
-            console.warn('Migration warning (duplicate index/entry/syntax, continuing):', err.message);
+          if (code === 'ER_DUP_KEYNAME' || code === 1061 || code === 'ER_DUP_ENTRY' || code === 1062 || code === 'ER_PARSE_ERROR' || code === 1064 || code === 'ER_DUP_FIELDNAME' || code === 1060) {
+            console.warn('Migration warning (duplicate index/entry/syntax/column, continuing):', err.message);
           } else {
             throw err;
           }

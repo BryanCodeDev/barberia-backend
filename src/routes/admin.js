@@ -1,6 +1,10 @@
 const express = require('express');
 const pool = require('../config/database');
+const { requireRole } = require('../middleware/auth');
+
 const router = express.Router();
+
+router.use(requireRole(['admin', 'barber']));
 
 function getPeriodRange(period) {
   const now = new Date();
@@ -38,18 +42,33 @@ const formatDate = (d) => {
   return `${year}-${month}-${day}`;
 };
 
+const getBarberId = (req) => req.user.role === 'barber' ? req.user.entity_id : null;
+
+const isAdmin = (req) => req.user.role === 'admin';
+
+const baseAppointmentWhere = (req) => {
+  const barberId = getBarberId(req);
+  return barberId ? 'a.barber_id = ?' : '1=1';
+};
+
+const appendBarberFilter = (params, req) => {
+  const barberId = getBarberId(req);
+  if (barberId) params.push(barberId);
+};
+
 router.get('/stats', async (req, res) => {
   try {
-    const [total] = await pool.execute('SELECT COUNT(*) AS count FROM appointments');
-    const [pending] = await pool.execute("SELECT COUNT(*) AS count FROM appointments WHERE status = 'pending'");
-    const [confirmed] = await pool.execute("SELECT COUNT(*) AS count FROM appointments WHERE status = 'confirmed'");
-    const [cancelled] = await pool.execute("SELECT COUNT(*) AS count FROM appointments WHERE status = 'cancelled'");
+    const barberFilter = baseAppointmentWhere(req);
+    const [total] = await pool.execute(`SELECT COUNT(*) AS count FROM appointments a WHERE ${barberFilter}`, getBarberId(req) ? [getBarberId(req)] : []);
+    const [pending] = await pool.execute(`SELECT COUNT(*) AS count FROM appointments a WHERE ${barberFilter} AND a.status = 'pending'`, getBarberId(req) ? [getBarberId(req)] : []);
+    const [confirmed] = await pool.execute(`SELECT COUNT(*) AS count FROM appointments a WHERE ${barberFilter} AND a.status = 'confirmed'`, getBarberId(req) ? [getBarberId(req)] : []);
+    const [cancelled] = await pool.execute(`SELECT COUNT(*) AS count FROM appointments a WHERE ${barberFilter} AND a.status = 'cancelled'`, getBarberId(req) ? [getBarberId(req)] : []);
     const now = new Date();
     const year = now.getFullYear();
     const month = String(now.getMonth() + 1).padStart(2, '0');
     const day = String(now.getDate()).padStart(2, '0');
     const today = `${year}-${month}-${day}`;
-    const [todayCount] = await pool.execute('SELECT COUNT(*) AS count FROM appointments WHERE appointment_date = ?', [today]);
+    const [todayCount] = await pool.execute(`SELECT COUNT(*) AS count FROM appointments a WHERE ${barberFilter} AND a.appointment_date = ?`, getBarberId(req) ? [getBarberId(req), today] : [today]);
 
     res.json({
       total: total[0].count,
@@ -70,9 +89,17 @@ router.get('/appointments', async (req, res) => {
     const pageNum = parseInt(page, 10) || 1;
     const limitNum = parseInt(limit, 10) || 10;
     const offset = (pageNum - 1) * limitNum;
+    const safeLimit = Math.max(1, Math.min(limitNum, 100));
+    const safeOffset = Math.max(0, offset);
 
     let query = 'SELECT a.*, s.name AS service_name, s.duration_minutes AS service_duration, s.price_cents, c.name AS client_name, c.phone AS client_phone, w.name AS workstation_name, b.name AS barber_name FROM appointments a LEFT JOIN services s ON a.service_id = s.id LEFT JOIN clients c ON a.client_id = c.id LEFT JOIN workstations w ON a.workstation_id = w.id LEFT JOIN barbers b ON a.barber_id = b.id WHERE 1=1';
     const params = [];
+
+    const barberId = getBarberId(req);
+    if (barberId) {
+      query += ' AND a.barber_id = ?';
+      params.push(barberId);
+    }
 
     if (status) {
       query += ' AND a.status = ?';
@@ -87,9 +114,6 @@ router.get('/appointments', async (req, res) => {
       params.push(`%${search}%`, `%${search}%`);
     }
 
-    const safeLimit = Math.max(1, Math.min(limitNum, 100));
-    const safeOffset = Math.max(0, offset);
-
     query += ` ORDER BY a.appointment_date DESC, a.appointment_time DESC LIMIT ${safeLimit} OFFSET ${safeOffset}`;
 
     const [rows] = await pool.execute(query, params);
@@ -102,7 +126,15 @@ router.get('/appointments', async (req, res) => {
 
 router.get('/workstations', async (req, res) => {
   try {
-    const workstations = await pool.execute('SELECT w.*, b.name AS barber_name FROM workstations w LEFT JOIN barbers b ON w.barber_id = b.id WHERE w.is_active = 1 ORDER BY w.id');
+    const barberId = getBarberId(req);
+    let query = 'SELECT w.*, b.name AS barber_name FROM workstations w LEFT JOIN barbers b ON w.barber_id = b.id WHERE w.is_active = 1';
+    const params = [];
+    if (barberId) {
+      query += ' AND w.barber_id = ?';
+      params.push(barberId);
+    }
+    query += ' ORDER BY w.id';
+    const workstations = await pool.execute(query, params);
     res.json(workstations[0]);
   } catch (error) {
     console.error('Error fetching workstations:', error);
@@ -112,7 +144,15 @@ router.get('/workstations', async (req, res) => {
 
 router.get('/notifications', async (req, res) => {
   try {
-    const [rows] = await pool.execute('SELECT n.*, a.appointment_date, a.appointment_time FROM notifications n LEFT JOIN appointments a ON n.appointment_id = a.id ORDER BY n.sent_at DESC LIMIT 100');
+    const barberId = getBarberId(req);
+    let query = 'SELECT n.*, a.appointment_date, a.appointment_time FROM notifications n LEFT JOIN appointments a ON n.appointment_id = a.id WHERE 1=1';
+    const params = [];
+    if (barberId) {
+      query += ' AND a.barber_id = ?';
+      params.push(barberId);
+    }
+    query += ' ORDER BY n.sent_at DESC LIMIT 100';
+    const [rows] = await pool.execute(query, params);
     res.json(rows);
   } catch (error) {
     console.error('Error fetching notifications:', error);
@@ -123,7 +163,6 @@ router.get('/notifications', async (req, res) => {
 router.get('/revenue', async (req, res) => {
   try {
     const { period = 'today' } = req.query;
-
     const now = new Date();
     let currentStart, currentEnd, previousStart, previousEnd;
 
@@ -160,14 +199,20 @@ router.get('/revenue', async (req, res) => {
         previousEnd = new Date(currentStart);
     }
 
+    const barberId = getBarberId(req);
+    const barberFilter = barberId ? 'AND a.barber_id = ?' : '';
+    const currentParams = barberId ? [formatDate(currentStart), formatDate(currentEnd), barberId] : [formatDate(currentStart), formatDate(currentEnd)];
+    const previousParams = barberId ? [formatDate(previousStart), formatDate(previousEnd), barberId] : [formatDate(previousStart), formatDate(previousEnd)];
+
     const [currentRows] = await pool.execute(
       `SELECT SUM(s.price_cents) AS total_revenue, COUNT(a.id) AS total_appointments
        FROM appointments a
        LEFT JOIN services s ON a.service_id = s.id
        WHERE a.status = 'completed'
          AND a.appointment_date >= ?
-         AND a.appointment_date < ?`,
-      [formatDate(currentStart), formatDate(currentEnd)]
+         AND a.appointment_date < ?
+         ${barberFilter}`,
+      currentParams
     );
 
     const [previousRows] = await pool.execute(
@@ -176,8 +221,9 @@ router.get('/revenue', async (req, res) => {
        LEFT JOIN services s ON a.service_id = s.id
        WHERE a.status = 'completed'
          AND a.appointment_date >= ?
-         AND a.appointment_date < ?`,
-      [formatDate(previousStart), formatDate(previousEnd)]
+         AND a.appointment_date < ?
+         ${barberFilter}`,
+      previousParams
     );
 
     const current = currentRows[0] || { total_revenue: 0, total_appointments: 0 };
@@ -215,6 +261,11 @@ router.get('/performance', async (req, res) => {
     const { period = 'week' } = req.query;
     const { start, end } = getPeriodRange(period);
 
+    const barberId = getBarberId(req);
+    const barberFilter = barberId ? 'AND a.barber_id = ?' : '';
+    const params = [formatDate(start), formatDate(end)];
+    const havingParams = [formatDate(start), formatDate(end)];
+
     const [byBarber] = await pool.execute(
       `SELECT b.id AS barber_id, b.name AS barber_name, COUNT(a.id) AS appointments, COALESCE(SUM(s.price_cents), 0) AS revenue_cents
        FROM appointments a
@@ -223,9 +274,10 @@ router.get('/performance', async (req, res) => {
        WHERE a.status = 'completed'
          AND a.appointment_date >= ?
          AND a.appointment_date < ?
+         ${barberFilter}
        GROUP BY b.id, b.name
        ORDER BY revenue_cents DESC`,
-      [formatDate(start), formatDate(end)]
+      barberId ? [...params, barberId, ...havingParams] : params
     );
 
     const [byService] = await pool.execute(
@@ -235,9 +287,10 @@ router.get('/performance', async (req, res) => {
        WHERE a.status = 'completed'
          AND a.appointment_date >= ?
          AND a.appointment_date < ?
+         ${barberFilter}
        GROUP BY s.id, s.name
        ORDER BY appointments DESC`,
-      [formatDate(start), formatDate(end)]
+      barberId ? [...params, barberId] : params
     );
 
     const [byHour] = await pool.execute(
@@ -246,9 +299,10 @@ router.get('/performance', async (req, res) => {
        WHERE a.status = 'completed'
          AND a.appointment_date >= ?
          AND a.appointment_date < ?
+         ${barberFilter}
        GROUP BY HOUR(a.appointment_time)
        ORDER BY hour`,
-      [formatDate(start), formatDate(end)]
+      barberId ? [...params, barberId] : params
     );
 
     const [byWeekday] = await pool.execute(
@@ -257,9 +311,10 @@ router.get('/performance', async (req, res) => {
        WHERE a.status = 'completed'
          AND a.appointment_date >= ?
          AND a.appointment_date < ?
+         ${barberFilter}
        GROUP BY DAYOFWEEK(a.appointment_date)
        ORDER BY weekday`,
-      [formatDate(start), formatDate(end)]
+      barberId ? [...params, barberId] : params
     );
 
     res.json({
@@ -287,6 +342,12 @@ router.get('/clients', async (req, res) => {
                  LEFT JOIN appointments a ON c.id = a.client_id`;
     const params = [];
 
+    const barberId = getBarberId(req);
+    if (barberId) {
+      query += ' AND (a.barber_id = ? OR a.barber_id IS NULL)';
+      params.push(barberId);
+    }
+
     if (search) {
       query += ' WHERE c.name LIKE ? OR c.phone LIKE ?';
       params.push(`%${search}%`, `%${search}%`);
@@ -306,15 +367,21 @@ router.get('/clients/inactive', async (req, res) => {
   try {
     const { days = 40 } = req.query;
 
-    const [rows] = await pool.execute(
-      `SELECT c.id, c.name, c.phone, c.email, c.total_visits, c.last_visit,
-              DATEDIFF(NOW(), c.last_visit) AS days_since_last_visit
-       FROM clients c
-       WHERE c.last_visit IS NOT NULL
-         AND c.last_visit < DATE_SUB(NOW(), INTERVAL ? DAY)
-       ORDER BY c.last_visit ASC`,
-      [parseInt(days, 10)]
-    );
+    let query = `SELECT c.id, c.name, c.phone, c.email, c.total_visits, c.last_visit,
+                    DATEDIFF(NOW(), c.last_visit) AS days_since_last_visit
+             FROM clients c
+             WHERE c.last_visit IS NOT NULL
+               AND c.last_visit < DATE_SUB(NOW(), INTERVAL ? DAY)`;
+    const params = [parseInt(days, 10)];
+
+    const barberId = getBarberId(req);
+    if (barberId) {
+      query += ' AND EXISTS (SELECT 1 FROM appointments a WHERE a.client_id = c.id AND a.barber_id = ?)';
+      params.push(barberId);
+    }
+
+    query += ' ORDER BY c.last_visit ASC';
+    const [rows] = await pool.execute(query, params);
     res.json(rows);
   } catch (error) {
     console.error('Error fetching inactive clients:', error);
@@ -326,6 +393,8 @@ router.get('/clients/summary', async (req, res) => {
   try {
     const { period = 'month' } = req.query;
     const { start, end } = getPeriodRange(period);
+    const barberId = getBarberId(req);
+    const barberFilter = barberId ? 'AND a.barber_id = ?' : '';
 
     const [newClientsRows] = await pool.execute(
       `SELECT COUNT(DISTINCT c.id) AS count
@@ -333,12 +402,13 @@ router.get('/clients/summary', async (req, res) => {
        JOIN appointments a ON c.id = a.client_id
        WHERE a.appointment_date >= ?
          AND a.appointment_date < ?
+         ${barberFilter}
          AND NOT EXISTS (
            SELECT 1 FROM appointments a2
            WHERE a2.client_id = c.id
              AND a2.appointment_date < ?
          )`,
-      [formatDate(start), formatDate(end), formatDate(start)]
+      barberId ? [formatDate(start), formatDate(end), barberId, formatDate(start)] : [formatDate(start), formatDate(end), formatDate(start)]
     );
 
     const [returningClientsRows] = await pool.execute(
@@ -347,12 +417,13 @@ router.get('/clients/summary', async (req, res) => {
        JOIN appointments a ON c.id = a.client_id
        WHERE a.appointment_date >= ?
          AND a.appointment_date < ?
+         ${barberFilter}
          AND EXISTS (
            SELECT 1 FROM appointments a2
            WHERE a2.client_id = c.id
              AND a2.appointment_date < ?
          )`,
-      [formatDate(start), formatDate(end), formatDate(start)]
+      barberId ? [formatDate(start), formatDate(end), barberId, formatDate(start)] : [formatDate(start), formatDate(end), formatDate(start)]
     );
 
     res.json({
@@ -362,6 +433,371 @@ router.get('/clients/summary', async (req, res) => {
     });
   } catch (error) {
     console.error('Error fetching clients summary:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+router.get('/barbers', async (req, res) => {
+  try {
+    const [rows] = await pool.execute('SELECT * FROM barbers ORDER BY name');
+    res.json(rows);
+  } catch (error) {
+    console.error('Error fetching barbers:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+router.post('/barbers', async (req, res) => {
+  try {
+    if (!isAdmin(req)) {
+      return res.status(403).json({ error: 'No tienes permisos para crear barberos' });
+    }
+    const { name, email, phone, is_active } = req.body;
+    if (!name || !String(name).trim()) {
+      return res.status(400).json({ error: 'El nombre del barbero es requerido' });
+    }
+    const [result] = await pool.execute(
+      'INSERT INTO barbers (name, email, phone, is_active) VALUES (?, ?, ?, ?)',
+      [String(name).trim(), email ? String(email).trim() : null, phone ? String(phone).trim() : null, is_active ? 1 : 0]
+    );
+    const [rows] = await pool.execute('SELECT * FROM barbers WHERE id = ?', [result.insertId]);
+    res.status(201).json(rows[0]);
+  } catch (error) {
+    console.error('Error creating barber:', error);
+    if (error.code === 'ER_DUP_ENTRY') {
+      return res.status(409).json({ error: 'Ya existe un barbero con ese nombre' });
+    }
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+router.patch('/barbers/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const barberId = getBarberId(req);
+    if (barberId && barberId !== Number(id)) {
+      return res.status(403).json({ error: 'No tienes permisos para editar este barbero' });
+    }
+    const { name, email, phone, is_active } = req.body;
+    const [existing] = await pool.execute('SELECT * FROM barbers WHERE id = ?', [id]);
+    if (existing.length === 0) {
+      return res.status(404).json({ error: 'Barbero no encontrado' });
+    }
+    const updates = [];
+    const values = [];
+    if (name !== undefined) { updates.push('name = ?'); values.push(String(name).trim()); }
+    if (email !== undefined) { updates.push('email = ?'); values.push(email ? String(email).trim() : null); }
+    if (phone !== undefined) { updates.push('phone = ?'); values.push(phone ? String(phone).trim() : null); }
+    if (is_active !== undefined) { updates.push('is_active = ?'); values.push(is_active ? 1 : 0); }
+    if (updates.length === 0) {
+      return res.status(400).json({ error: 'No hay campos para actualizar' });
+    }
+    values.push(id);
+    await pool.execute(`UPDATE barbers SET ${updates.join(', ')} WHERE id = ?`, values);
+    const [rows] = await pool.execute('SELECT * FROM barbers WHERE id = ?', [id]);
+    res.json(rows[0]);
+  } catch (error) {
+    console.error('Error updating barber:', error);
+    if (error.code === 'ER_DUP_ENTRY') {
+      return res.status(409).json({ error: 'Ya existe un barbero con ese nombre' });
+    }
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+router.delete('/barbers/:id', async (req, res) => {
+  try {
+    if (!isAdmin(req)) {
+      return res.status(403).json({ error: 'No tienes permisos para desactivar barberos' });
+    }
+    const { id } = req.params;
+    const [existing] = await pool.execute('SELECT * FROM barbers WHERE id = ?', [id]);
+    if (existing.length === 0) {
+      return res.status(404).json({ error: 'Barbero no encontrado' });
+    }
+    await pool.execute('UPDATE barbers SET is_active = 0 WHERE id = ?', [id]);
+    res.json({ message: 'Barbero desactivado' });
+  } catch (error) {
+    console.error('Error deleting barber:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+router.post('/workstations', async (req, res) => {
+  try {
+    if (!isAdmin(req)) {
+      return res.status(403).json({ error: 'No tienes permisos para crear estaciones' });
+    }
+    const { name, barber_id, is_active } = req.body;
+    if (!name || !String(name).trim()) {
+      return res.status(400).json({ error: 'El nombre de la estación es requerido' });
+    }
+    const [result] = await pool.execute(
+      'INSERT INTO workstations (name, barber_id, is_active) VALUES (?, ?, ?)',
+      [String(name).trim(), barber_id ? Number(barber_id) : null, is_active ? 1 : 0]
+    );
+    const [rows] = await pool.execute('SELECT w.*, b.name AS barber_name FROM workstations w LEFT JOIN barbers b ON w.barber_id = b.id WHERE w.id = ?', [result.insertId]);
+    res.status(201).json(rows[0]);
+  } catch (error) {
+    console.error('Error creating workstation:', error);
+    if (error.code === 'ER_DUP_ENTRY') {
+      return res.status(409).json({ error: 'Ya existe una estación con ese nombre' });
+    }
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+router.patch('/workstations/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const barberId = getBarberId(req);
+    if (barberId) {
+      const [ws] = await pool.execute('SELECT * FROM workstations WHERE id = ?', [id]);
+      if (ws.length === 0 || ws[0].barber_id !== barberId) {
+        return res.status(403).json({ error: 'No tienes permisos para editar esta estación' });
+      }
+    }
+    const { name, barber_id, is_active } = req.body;
+    const [existing] = await pool.execute('SELECT * FROM workstations WHERE id = ?', [id]);
+    if (existing.length === 0) {
+      return res.status(404).json({ error: 'Estación no encontrada' });
+    }
+    const updates = [];
+    const values = [];
+    if (name !== undefined) { updates.push('name = ?'); values.push(String(name).trim()); }
+    if (barber_id !== undefined) { updates.push('barber_id = ?'); values.push(barber_id ? Number(barber_id) : null); }
+    if (is_active !== undefined) { updates.push('is_active = ?'); values.push(is_active ? 1 : 0); }
+    if (updates.length === 0) {
+      return res.status(400).json({ error: 'No hay campos para actualizar' });
+    }
+    values.push(id);
+    await pool.execute(`UPDATE workstations SET ${updates.join(', ')} WHERE id = ?`, values);
+    const [rows] = await pool.execute('SELECT w.*, b.name AS barber_name FROM workstations w LEFT JOIN barbers b ON w.barber_id = b.id WHERE w.id = ?', [id]);
+    res.json(rows[0]);
+  } catch (error) {
+    console.error('Error updating workstation:', error);
+    if (error.code === 'ER_DUP_ENTRY') {
+      return res.status(409).json({ error: 'Ya existe una estación con ese nombre' });
+    }
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+router.delete('/workstations/:id', async (req, res) => {
+  try {
+    if (!isAdmin(req)) {
+      return res.status(403).json({ error: 'No tienes permisos para desactivar estaciones' });
+    }
+    const { id } = req.params;
+    const [existing] = await pool.execute('SELECT * FROM workstations WHERE id = ?', [id]);
+    if (existing.length === 0) {
+      return res.status(404).json({ error: 'Estación no encontrada' });
+    }
+    await pool.execute('UPDATE workstations SET is_active = 0 WHERE id = ?', [id]);
+    res.json({ message: 'Estación desactivada' });
+  } catch (error) {
+    console.error('Error deleting workstation:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+router.get('/services', async (req, res) => {
+  try {
+    const [rows] = await pool.execute('SELECT * FROM services ORDER BY category, name');
+    res.json(rows);
+  } catch (error) {
+    console.error('Error fetching services:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+router.post('/services', async (req, res) => {
+  try {
+    if (!isAdmin(req)) {
+      return res.status(403).json({ error: 'No tienes permisos para crear servicios' });
+    }
+    const { name, category, duration_minutes, price_cents, description, is_popular, is_active } = req.body;
+    if (!name || !String(name).trim() || !category || !duration_minutes || price_cents === undefined) {
+      return res.status(400).json({ error: 'Nombre, categoría, duración y precio son requeridos' });
+    }
+    const [result] = await pool.execute(
+      'INSERT INTO services (name, category, duration_minutes, price_cents, description, is_popular, is_active) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [String(name).trim(), category, Number(duration_minutes), Number(price_cents), description ? String(description).trim() : null, is_popular ? 1 : 0, is_active ? 1 : 0]
+    );
+    const [rows] = await pool.execute('SELECT * FROM services WHERE id = ?', [result.insertId]);
+    res.status(201).json(rows[0]);
+  } catch (error) {
+    console.error('Error creating service:', error);
+    if (error.code === 'ER_DUP_ENTRY') {
+      return res.status(409).json({ error: 'Ya existe un servicio con ese nombre' });
+    }
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+router.patch('/services/:id', async (req, res) => {
+  try {
+    if (!isAdmin(req)) {
+      return res.status(403).json({ error: 'No tienes permisos para editar servicios' });
+    }
+    const { id } = req.params;
+    const { name, category, duration_minutes, price_cents, description, is_popular, is_active } = req.body;
+    const [existing] = await pool.execute('SELECT * FROM services WHERE id = ?', [id]);
+    if (existing.length === 0) {
+      return res.status(404).json({ error: 'Servicio no encontrado' });
+    }
+    const updates = [];
+    const values = [];
+    if (name !== undefined) { updates.push('name = ?'); values.push(String(name).trim()); }
+    if (category !== undefined) { updates.push('category = ?'); values.push(category); }
+    if (duration_minutes !== undefined) { updates.push('duration_minutes = ?'); values.push(Number(duration_minutes)); }
+    if (price_cents !== undefined) { updates.push('price_cents = ?'); values.push(Number(price_cents)); }
+    if (description !== undefined) { updates.push('description = ?'); values.push(description ? String(description).trim() : null); }
+    if (is_popular !== undefined) { updates.push('is_popular = ?'); values.push(is_popular ? 1 : 0); }
+    if (is_active !== undefined) { updates.push('is_active = ?'); values.push(is_active ? 1 : 0); }
+    if (updates.length === 0) {
+      return res.status(400).json({ error: 'No hay campos para actualizar' });
+    }
+    values.push(id);
+    await pool.execute(`UPDATE services SET ${updates.join(', ')} WHERE id = ?`, values);
+    const [rows] = await pool.execute('SELECT * FROM services WHERE id = ?', [id]);
+    res.json(rows[0]);
+  } catch (error) {
+    console.error('Error updating service:', error);
+    if (error.code === 'ER_DUP_ENTRY') {
+      return res.status(409).json({ error: 'Ya existe un servicio con ese nombre' });
+    }
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+router.delete('/services/:id', async (req, res) => {
+  try {
+    if (!isAdmin(req)) {
+      return res.status(403).json({ error: 'No tienes permisos para desactivar servicios' });
+    }
+    const { id } = req.params;
+    const [existing] = await pool.execute('SELECT * FROM services WHERE id = ?', [id]);
+    if (existing.length === 0) {
+      return res.status(404).json({ error: 'Servicio no encontrado' });
+    }
+    await pool.execute('UPDATE services SET is_active = 0 WHERE id = ?', [id]);
+    res.json({ message: 'Servicio desactivado' });
+  } catch (error) {
+    console.error('Error deleting service:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+router.post('/clients', async (req, res) => {
+  try {
+    if (!isAdmin(req)) {
+      return res.status(403).json({ error: 'No tienes permisos para crear clientes' });
+    }
+    const { name, phone, email, notes } = req.body;
+    if (!name || !String(name).trim() || !phone || !/^\d{10}$/.test(String(phone).trim())) {
+      return res.status(400).json({ error: 'Nombre y teléfono (10 dígitos) son requeridos' });
+    }
+    const [existing] = await pool.execute('SELECT id FROM clients WHERE phone = ?', [String(phone).trim()]);
+    if (existing.length > 0) {
+      return res.status(409).json({ error: 'Ya existe un cliente con este teléfono', clientId: existing[0].id });
+    }
+    const [result] = await pool.execute(
+      'INSERT INTO clients (name, phone, email, notes) VALUES (?, ?, ?, ?)',
+      [String(name).trim(), String(phone).trim(), email ? String(email).trim() : null, notes ? String(notes).trim() : null]
+    );
+    const [rows] = await pool.execute('SELECT * FROM clients WHERE id = ?', [result.insertId]);
+    res.status(201).json(rows[0]);
+  } catch (error) {
+    console.error('Error creating client:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+router.patch('/clients/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, phone, email, notes } = req.body;
+    const [existing] = await pool.execute('SELECT * FROM clients WHERE id = ?', [id]);
+    if (existing.length === 0) {
+      return res.status(404).json({ error: 'Cliente no encontrado' });
+    }
+    const updates = [];
+    const values = [];
+    if (name !== undefined) { updates.push('name = ?'); values.push(String(name).trim()); }
+    if (phone !== undefined) { updates.push('phone = ?'); values.push(String(phone).trim()); }
+    if (email !== undefined) { updates.push('email = ?'); values.push(email ? String(email).trim() : null); }
+    if (notes !== undefined) { updates.push('notes = ?'); values.push(notes ? String(notes).trim() : null); }
+    if (updates.length === 0) {
+      return res.status(400).json({ error: 'No hay campos para actualizar' });
+    }
+    values.push(id);
+    await pool.execute(`UPDATE clients SET ${updates.join(', ')} WHERE id = ?`, values);
+    const [rows] = await pool.execute('SELECT * FROM clients WHERE id = ?', [id]);
+    res.json(rows[0]);
+  } catch (error) {
+    console.error('Error updating client:', error);
+    if (error.code === 'ER_DUP_ENTRY') {
+      return res.status(409).json({ error: 'Ya existe un cliente con ese teléfono' });
+    }
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+router.delete('/clients/:id', async (req, res) => {
+  try {
+    if (!isAdmin(req)) {
+      return res.status(403).json({ error: 'No tienes permisos para eliminar clientes' });
+    }
+    const { id } = req.params;
+    const [existing] = await pool.execute('SELECT * FROM clients WHERE id = ?', [id]);
+    if (existing.length === 0) {
+      return res.status(404).json({ error: 'Cliente no encontrado' });
+    }
+    await pool.execute('DELETE FROM clients WHERE id = ?', [id]);
+    res.json({ message: 'Cliente eliminado' });
+  } catch (error) {
+    console.error('Error deleting client:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+router.patch('/appointments/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { client_id, service_id, workstation_id, barber_id, appointment_date, appointment_time, duration_minutes, status, client_message, source, reminder_sent } = req.body;
+    const [existing] = await pool.execute('SELECT * FROM appointments WHERE id = ?', [id]);
+    if (existing.length === 0) {
+      return res.status(404).json({ error: 'Cita no encontrada' });
+    }
+
+    const barberId = getBarberId(req);
+    if (barberId && existing[0].barber_id !== barberId) {
+      return res.status(403).json({ error: 'No tienes permisos para editar esta cita' });
+    }
+
+    const updates = [];
+    const values = [];
+    if (client_id !== undefined) { updates.push('client_id = ?'); values.push(Number(client_id)); }
+    if (service_id !== undefined) { updates.push('service_id = ?'); values.push(Number(service_id)); }
+    if (workstation_id !== undefined) { updates.push('workstation_id = ?'); values.push(workstation_id ? Number(workstation_id) : null); }
+    if (barber_id !== undefined) { updates.push('barber_id = ?'); values.push(barber_id ? Number(barber_id) : null); }
+    if (appointment_date !== undefined) { updates.push('appointment_date = ?'); values.push(String(appointment_date).trim()); }
+    if (appointment_time !== undefined) { updates.push('appointment_time = ?'); values.push(String(appointment_time).trim()); }
+    if (duration_minutes !== undefined) { updates.push('duration_minutes = ?'); values.push(Number(duration_minutes)); }
+    if (status !== undefined) { updates.push('status = ?'); values.push(status); }
+    if (client_message !== undefined) { updates.push('client_message = ?'); values.push(client_message ? String(client_message).trim() : null); }
+    if (source !== undefined) { updates.push('source = ?'); values.push(String(source).trim()); }
+    if (reminder_sent !== undefined) { updates.push('reminder_sent = ?'); values.push(reminder_sent ? 1 : 0); }
+    if (updates.length === 0) {
+      return res.status(400).json({ error: 'No hay campos para actualizar' });
+    }
+    values.push(id);
+    await pool.execute(`UPDATE appointments SET ${updates.join(', ')} WHERE id = ?`, values);
+    const [rows] = await pool.execute('SELECT a.*, s.name AS service_name, c.name AS client_name, c.phone AS client_phone, w.name AS workstation_name, b.name AS barber_name FROM appointments a LEFT JOIN services s ON a.service_id = s.id LEFT JOIN clients c ON a.client_id = c.id LEFT JOIN workstations w ON a.workstation_id = w.id LEFT JOIN barbers b ON a.barber_id = b.id WHERE a.id = ?', [id]);
+    res.json(rows[0]);
+  } catch (error) {
+    console.error('Error updating appointment:', error);
     res.status(500).json({ error: 'Error interno del servidor' });
   }
 });

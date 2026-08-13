@@ -113,7 +113,7 @@ app.get('/api/business-settings', async (req, res) => {
   }
 });
 
-app.patch('/api/business-settings', authenticateToken, async (req, res) => {
+app.patch('/api/business-settings', authenticateToken, requireRole(['admin']), async (req, res) => {
   try {
     const allowed = [
       'business_name', 'address', 'phone', 'whatsapp_number', 'email',

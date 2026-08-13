@@ -64,7 +64,7 @@ ON DUPLICATE KEY UPDATE
 
 DELETE FROM admin_users;
 
-INSERT INTO admin_users (username, password_hash, is_active) VALUES
-  ('marco.rivas', '$2a$10$vZkIKaNd/iq/K87BK9CfqON59Y2T2u1PRyi6Vz/gX9ggOPun4cQNe', 1),
-  ('juanjose.henriquez', '$2a$10$vZkIKaNd/iq/K87BK9CfqON59Y2T2u1PRyi6Vz/gX9ggOPun4cQNe', 1),
-  ('admin', '$2a$10$xpMJeJ3z9UW2T2Q7CApntuL5nGOwMo5MKfBwRM.SYVybEYOO96YVi', 1);
+INSERT INTO admin_users (username, password_hash, role, entity_id, is_active) VALUES
+  ('marco.rivas', '$2a$10$vZkIKaNd/iq/K87BK9CfqON59Y2T2u1PRyi6Vz/gX9ggOPun4cQNe', 'barber', @marco_id, 1),
+  ('juanjose.henriquez', '$2a$10$vZkIKaNd/iq/K87BK9CfqON59Y2T2u1PRyi6Vz/gX9ggOPun4cQNe', 'barber', @juan_id, 1),
+  ('admin', '$2a$10$xpMJeJ3z9UW2T2Q7CApntuL5nGOwMo5MKfBwRM.SYVybEYOO96YVi', 'admin', NULL, 1);

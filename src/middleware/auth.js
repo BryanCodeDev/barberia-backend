@@ -18,4 +18,17 @@ const authenticateToken = (req, res, next) => {
   });
 };
 
-module.exports = { authenticateToken };
+const requireRole = (allowedRoles) => {
+  return (req, res, next) => {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Token de acceso requerido' });
+    }
+    const role = req.user.role;
+    if (!allowedRoles.includes(role)) {
+      return res.status(403).json({ error: 'No tienes permisos para acceder a este recurso' });
+    }
+    next();
+  };
+};
+
+module.exports = { authenticateToken, requireRole };
