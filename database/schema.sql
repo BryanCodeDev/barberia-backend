@@ -6,7 +6,7 @@ USE barber_trebol;
 
 CREATE TABLE IF NOT EXISTS barbers (
   id INT AUTO_INCREMENT PRIMARY KEY,
-  name VARCHAR(100) NOT NULL,
+  name VARCHAR(100) NOT NULL UNIQUE,
   email VARCHAR(255) NULL,
   phone VARCHAR(20) NULL,
   is_active TINYINT(1) DEFAULT 1,
@@ -130,5 +130,3 @@ CREATE TABLE IF NOT EXISTS otp_codes (
   INDEX idx_otp_expires (expires_at)
 );
 
-ALTER TABLE admin_users ADD COLUMN role ENUM('admin','barber') DEFAULT 'admin' AFTER password_hash;
-ALTER TABLE admin_users ADD COLUMN entity_id INT NULL AFTER role;

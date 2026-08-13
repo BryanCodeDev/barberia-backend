@@ -1,6 +1,7 @@
 const pool = require('../config/database');
 const fs = require('fs');
 const path = require('path');
+const mysql = require('mysql2/promise');
 
 function resolveDbPath(filename) {
   const fromRoot = path.join(process.cwd(), 'database', filename);
@@ -80,4 +81,26 @@ async function migrate() {
   }
 }
 
-module.exports = { migrate };
+async function dropAndMigrate() {
+  const schemaPath = resolveDbPath('schema.sql');
+  const schemaSQL = fs.readFileSync(schemaPath, 'utf8');
+
+  const adminConn = await mysql.createConnection({
+    host: process.env.DB_HOST || process.env.MYSQLHOST || 'localhost',
+    port: parseInt(process.env.DB_PORT, 10) || parseInt(process.env.MYSQLPORT, 10) || 3306,
+    user: process.env.DB_USER || process.env.MYSQLUSER || 'root',
+    password: process.env.DB_PASSWORD || process.env.MYSQLPASSWORD || '',
+  });
+
+  try {
+    await adminConn.query('DROP DATABASE IF EXISTS barber_trebol');
+    await adminConn.query('CREATE DATABASE barber_trebol CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci');
+    console.log('Database dropped and recreated');
+  } finally {
+    await adminConn.end();
+  }
+
+  await migrate();
+}
+
+module.exports = { migrate, dropAndMigrate };

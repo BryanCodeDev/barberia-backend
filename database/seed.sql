@@ -24,6 +24,8 @@ ON DUPLICATE KEY UPDATE
   min_cancel_hours = VALUES(min_cancel_hours),
   buffer_minutes_between_appointments = VALUES(buffer_minutes_between_appointments);
 
+DELETE FROM barbers WHERE name IN ('Marco Rivas', 'Juan José Henríquez');
+
 INSERT INTO barbers (name, email, phone, is_active) VALUES
   ('Marco Rivas', 'marco@barbertrebol.com', '+57 317 368 1490', 1),
   ('Juan José Henríquez', 'juanjose@barbertrebol.com', '+57 300 123 4567', 1)
@@ -32,8 +34,8 @@ ON DUPLICATE KEY UPDATE
   phone = VALUES(phone),
   is_active = VALUES(is_active);
 
-SET @marco_id = (SELECT id FROM barbers WHERE name = 'Marco Rivas');
-SET @juan_id = (SELECT id FROM barbers WHERE name = 'Juan José Henríquez');
+SET @marco_id = (SELECT id FROM barbers WHERE name = 'Marco Rivas' LIMIT 1);
+SET @juan_id = (SELECT id FROM barbers WHERE name = 'Juan José Henríquez' LIMIT 1);
 
 INSERT INTO workstations (name, barber_id, is_active) VALUES
   ('Puesto 1 - Marco Rivas', @marco_id, 1),
@@ -62,7 +64,7 @@ ON DUPLICATE KEY UPDATE
   is_popular = VALUES(is_popular),
   is_active = VALUES(is_active);
 
-DELETE FROM admin_users;
+DELETE FROM admin_users WHERE id > 0;
 
 INSERT INTO admin_users (username, password_hash, role, entity_id, is_active) VALUES
   ('marco.rivas', '$2a$10$vZkIKaNd/iq/K87BK9CfqON59Y2T2u1PRyi6Vz/gX9ggOPun4cQNe', 'barber', @marco_id, 1),
