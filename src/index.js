@@ -22,6 +22,7 @@ const appointmentRoutes = require('./routes/appointments');
 const serviceRoutes = require('./routes/services');
 const clientRoutes = require('./routes/clients');
 const adminRoutes = require('./routes/admin');
+const workstationRoutes = require('./routes/workstations');
 const { migrate } = require('./middleware/migrate');
 
 const app = express();
@@ -64,10 +65,38 @@ app.get('/api/business-settings', async (req, res) => {
   }
 });
 
+app.patch('/api/business-settings', authenticateToken, async (req, res) => {
+  try {
+    const allowed = [
+      'business_name', 'barber_name', 'address', 'phone', 'whatsapp_number', 'email',
+      'timezone', 'max_advance_booking_days', 'min_cancel_hours', 'buffer_minutes_between_appointments'
+    ];
+    const updates = [];
+    const values = [];
+    for (const key of allowed) {
+      if (req.body[key] !== undefined) {
+        updates.push(`${key} = ?`);
+        values.push(req.body[key]);
+      }
+    }
+    if (updates.length === 0) {
+      return res.status(400).json({ error: 'No hay campos para actualizar' });
+    }
+    values.push(new Date().toISOString().split('T')[0]);
+    await pool.execute(`UPDATE business_settings SET ${updates.join(', ')}, updated_at = ? WHERE id = (SELECT id FROM business_settings ORDER BY id DESC LIMIT 1)`, values);
+    const [rows] = await pool.execute('SELECT * FROM business_settings ORDER BY id DESC LIMIT 1');
+    res.json(rows[0]);
+  } catch (error) {
+    console.error('Error updating business settings:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
 app.use('/api/auth', authRoutes);
 app.use('/api/appointments', appointmentRoutes);
 app.use('/api/services', serviceRoutes);
 app.use('/api/clients', clientRoutes);
+app.use('/api/workstations', workstationRoutes);
 app.use('/api/admin', authenticateToken, adminRoutes);
 
 app.use(errorHandler);

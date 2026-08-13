@@ -64,4 +64,14 @@ router.get('/workstations', async (req, res) => {
   }
 });
 
+router.get('/notifications', async (req, res) => {
+  try {
+    const [rows] = await pool.execute('SELECT n.*, a.appointment_date, a.appointment_time FROM notifications n LEFT JOIN appointments a ON n.appointment_id = a.id ORDER BY n.sent_at DESC LIMIT 100');
+    res.json(rows);
+  } catch (error) {
+    console.error('Error fetching notifications:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
 module.exports = router;
