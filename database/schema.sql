@@ -4,7 +4,7 @@ CREATE DATABASE IF NOT EXISTS barber_trebol
 
 USE barber_trebol;
 
-CREATE TABLE barbers (
+CREATE TABLE IF NOT EXISTS barbers (
   id INT AUTO_INCREMENT PRIMARY KEY,
   name VARCHAR(100) NOT NULL,
   email VARCHAR(255) NULL,
@@ -14,7 +14,7 @@ CREATE TABLE barbers (
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
 
-CREATE TABLE workstations (
+CREATE TABLE IF NOT EXISTS workstations (
   id INT AUTO_INCREMENT PRIMARY KEY,
   name VARCHAR(50) NOT NULL,
   barber_id INT NULL,
@@ -24,7 +24,7 @@ CREATE TABLE workstations (
   FOREIGN KEY (barber_id) REFERENCES barbers(id) ON DELETE SET NULL
 );
 
-CREATE TABLE services (
+CREATE TABLE IF NOT EXISTS services (
   id INT AUTO_INCREMENT PRIMARY KEY,
   name VARCHAR(100) NOT NULL,
   category ENUM('corte','barba','cejas','combo','premium','luxury') NOT NULL,
@@ -37,7 +37,7 @@ CREATE TABLE services (
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
 
-CREATE TABLE clients (
+CREATE TABLE IF NOT EXISTS clients (
   id INT AUTO_INCREMENT PRIMARY KEY,
   name VARCHAR(100) NOT NULL,
   phone VARCHAR(20) NOT NULL,
@@ -50,7 +50,7 @@ CREATE TABLE clients (
   UNIQUE KEY uk_clients_phone (phone)
 );
 
-CREATE TABLE appointments (
+CREATE TABLE IF NOT EXISTS appointments (
   id INT AUTO_INCREMENT PRIMARY KEY,
   client_id INT NOT NULL,
   service_id INT NOT NULL,
@@ -77,7 +77,7 @@ CREATE TABLE appointments (
   INDEX idx_appointments_client (client_id)
 );
 
-CREATE TABLE business_settings (
+CREATE TABLE IF NOT EXISTS business_settings (
   id INT AUTO_INCREMENT PRIMARY KEY,
   business_name VARCHAR(200) NOT NULL,
   address TEXT NULL,
@@ -91,7 +91,7 @@ CREATE TABLE business_settings (
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
 
-CREATE TABLE admin_users (
+CREATE TABLE IF NOT EXISTS admin_users (
   id INT AUTO_INCREMENT PRIMARY KEY,
   username VARCHAR(50) NOT NULL UNIQUE,
   password_hash VARCHAR(255) NOT NULL,
@@ -100,7 +100,7 @@ CREATE TABLE admin_users (
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
 
-CREATE TABLE notifications (
+CREATE TABLE IF NOT EXISTS notifications (
   id INT AUTO_INCREMENT PRIMARY KEY,
   appointment_id INT NOT NULL,
   channel ENUM('whatsapp','sms','email') NOT NULL,
@@ -111,16 +111,3 @@ CREATE TABLE notifications (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (appointment_id) REFERENCES appointments(id) ON DELETE CASCADE
 );
-
-INSERT INTO business_settings (business_name, address, phone, whatsapp_number, email)
-VALUES (
-  'Barber Trebol',
-  'CALLE 3 #4 - 77 EDIFICIO INFINITO LOCAL 01, Mosquera, Cundinamarca',
-  '+57 300 123 4567',
-  '573001234567',
-  'contacto@barbertrebol.com'
-);
-
-INSERT INTO workstations (name, is_active) VALUES
-  ('Puesto 1 - Marco Rivas', 1),
-  ('Puesto 2 - Juan José Henríquez', 1);

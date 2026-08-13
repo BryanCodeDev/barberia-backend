@@ -11,8 +11,8 @@ function resolveDbPath(filename) {
 }
 
 async function migrate() {
+  const connection = await pool.getConnection();
   try {
-    const connection = await pool.getConnection();
     const schemaPath = resolveDbPath('schema.sql');
     const schemaSQL = fs.readFileSync(schemaPath, 'utf8');
     const statements = schemaSQL.split(';').filter((s) => s.trim());
@@ -37,10 +37,11 @@ async function migrate() {
       console.log('Seed data inserted');
     }
 
-    connection.release();
     console.log('Migration completed');
   } catch (err) {
     console.error('Migration error:', err);
+  } finally {
+    connection.release();
   }
 }
 
