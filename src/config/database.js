@@ -21,7 +21,7 @@ function parseDatabaseUrl(url) {
 const parsed = parseDatabaseUrl(process.env.MYSQL_URL);
 
 const pool = mysql.createPool({
-  host: (parsed && parsed.host) || process.env.DB_HOST || process.env.MYSQLHOST || 'localhost',
+  host: (parsed && parsed.host) || process.env.DB_HOST || process.env.MYSQLHOST || '127.0.0.1',
   port: (parsed && parsed.port) || parseInt(process.env.DB_PORT, 10) || parseInt(process.env.MYSQLPORT, 10) || 3306,
   user: (parsed && parsed.user) || process.env.DB_USER || process.env.MYSQLUSER || 'root',
   password: (parsed && parsed.password) || process.env.DB_PASSWORD || process.env.MYSQLPASSWORD || '',
