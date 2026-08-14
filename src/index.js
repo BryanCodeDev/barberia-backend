@@ -2,7 +2,6 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
-const rateLimit = require('express-rate-limit');
 require('dotenv').config();
 
 process.on('unhandledRejection', (err) => {
@@ -54,38 +53,8 @@ app.use(helmet());
 app.set('trust proxy', 1);
 app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
 
-app.use((req, res, next) => {
-  console.log('[MIDDLEWARE] request:', req.method, req.url);
-  next();
-});
-
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
-
-app.use((req, res, next) => {
-  console.log('[BODY] parsed keys:', Object.keys(req.body || {}));
-  next();
-});
-
-app.use((req, res, next) => {
-  next();
-});
-
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 100,
-  message: { error: 'Demasiadas solicitudes, intenta de nuevo más tarde' },
-});
-// app.use('/api/', limiter);
-
-app.use((req, res, next) => {
-  const timeout = setTimeout(() => {
-    console.error('[TIMEOUT] Request hanging:', req.method, req.url);
-  }, 10000);
-  res.on('finish', () => clearTimeout(timeout));
-  res.on('close', () => clearTimeout(timeout));
-  next();
-});
 
 app.use((req, res, next) => {
   const timeout = setTimeout(() => {
