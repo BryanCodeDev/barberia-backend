@@ -1,5 +1,4 @@
 const express = require('express');
-const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
 require('dotenv').config();
@@ -30,25 +29,29 @@ const corsOrigins = (process.env.FRONTEND_URL || 'http://localhost:5173')
   .split(',')
   .map((s) => s.trim());
 
-const isAllowedOrigin = (origin) => {
+function isAllowedOrigin(origin) {
   if (!origin) return true;
   if (corsOrigins.includes(origin)) return true;
   if (origin === 'http://localhost:5173') return true;
   if (origin.endsWith('.netlify.app')) return true;
   if (origin.endsWith('.railway.app')) return true;
   return false;
-};
+}
 
-app.use(cors({
-  origin: (origin, callback) => {
-    if (isAllowedOrigin(origin)) {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
-  credentials: true,
-}));
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  if (isAllowedOrigin(origin)) {
+    res.header('Access-Control-Allow-Origin', origin);
+    res.header('Access-Control-Allow-Credentials', 'true');
+    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+    res.header('Access-Control-Allow-Methods', 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS');
+  }
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(204);
+  }
+  next();
+});
+
 app.use(helmet());
 app.set('trust proxy', 1);
 app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
