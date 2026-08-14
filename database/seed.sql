@@ -68,6 +68,6 @@ ON DUPLICATE KEY UPDATE
 DELETE FROM admin_users WHERE id > 0;
 
 INSERT INTO admin_users (username, password_hash, role, entity_id, is_active) VALUES
-  ('marco.rivas', '$2a$10$vZkIKaNd/iq/K87BK9CfqON59Y2T2u1PRyi6Vz/gX9ggOPun4cQNe', 'barber', @marco_id, 1),
-  ('juanjose.henriquez', '$2a$10$vZkIKaNd/iq/K87BK9CfqON59Y2T2u1PRyi6Vz/gX9ggOPun4cQNe', 'barber', @juan_id, 1),
+  ('marco.rivas', '$2a$10$g1oGIZFBjuPp4CJUrMG9C.9St1YnVOK7QjfI8A5gyfF7.dpiLzAzW', 'barber', @marco_id, 1),
+  ('juanjose.henriquez', '$2a$10$N2z06ewFykAxmRibg8UBBuze6yUsXagG5RVSsCdZZKTx65lOsgsyC', 'barber', @juan_id, 1),
   ('admin', '$2a$10$xpMJeJ3z9UW2T2Q7CApntuL5nGOwMo5MKfBwRM.SYVybEYOO96YVi', 'admin', NULL, 1);
