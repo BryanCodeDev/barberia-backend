@@ -4,8 +4,8 @@ WORKDIR /app
 
 RUN mkdir -p logs
 
-COPY package.json package-lock.json ./
-RUN npm ci --omit=dev
+COPY package*.json ./
+RUN npm install --only=production
 
 COPY src/ ./src/
 COPY database/ ./database/
