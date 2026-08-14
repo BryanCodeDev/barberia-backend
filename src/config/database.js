@@ -41,10 +41,10 @@ function getDatabaseName() {
 let poolInstance = mysql.createPool(getDatabaseConfig());
 
 function attachPoolHandlers(p) {
-  p.on('connection', (conn) => {
+  p.on('connection', () => {
     console.log('[DB] pool connection acquired');
   });
-  p.on('release', (conn) => {
+  p.on('release', () => {
     console.log('[DB] pool connection released');
   });
   p.on('error', (err) => {
@@ -54,13 +54,17 @@ function attachPoolHandlers(p) {
 
 attachPoolHandlers(poolInstance);
 
-const pool = new Proxy(poolInstance, {
-  get(target, prop) {
-    return poolInstance[prop];
+const pool = new Proxy({
+  parseDatabaseUrl,
+  getDatabaseConfig,
+  getDatabaseName,
+  async end() {
+    await poolInstance.end();
   },
-  set(target, prop, value) {
-    poolInstance[prop] = value;
-    return true;
+}, {
+  get(target, prop) {
+    if (prop in target) return target[prop];
+    return poolInstance[prop];
   },
 });
 
@@ -69,11 +73,7 @@ async function recreatePool() {
   poolInstance = mysql.createPool(getDatabaseConfig());
   attachPoolHandlers(poolInstance);
   console.log('[DB] pool recreated');
-  return pool;
 }
 
 module.exports = pool;
-module.exports.parseDatabaseUrl = parseDatabaseUrl;
-module.exports.getDatabaseConfig = getDatabaseConfig;
-module.exports.getDatabaseName = getDatabaseName;
 module.exports.recreatePool = recreatePool;

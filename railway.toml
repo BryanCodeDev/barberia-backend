@@ -1,10 +1,6 @@
-[build]
-  command = "cd backend && npm ci"
-  publish = "backend"
-
 [[services]]
   name = "barber-trebol-api"
-  command = "cd backend && npm start"
+  command = "node src/index.js"
   port = 3001
   healthcheck = "/api/health"
   restart = "on-failure"
