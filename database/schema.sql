@@ -124,3 +124,54 @@ CREATE TABLE IF NOT EXISTS otp_codes (
   INDEX idx_otp_expires (expires_at)
 );
 
+CREATE TABLE IF NOT EXISTS client_identities (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  client_id INT NOT NULL,
+  identity_type ENUM('phone','email','google') NOT NULL,
+  identity_value VARCHAR(255) NOT NULL,
+  verified TINYINT(1) DEFAULT 0,
+  verified_at TIMESTAMP NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE,
+  UNIQUE KEY uq_client_identity (identity_type, identity_value),
+  INDEX idx_client_identity_client (client_id)
+);
+
+CREATE TABLE IF NOT EXISTS recommendations (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  service_id INT NOT NULL,
+  text TEXT NOT NULL,
+  `order` INT DEFAULT 0,
+  is_active TINYINT(1) DEFAULT 1,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (service_id) REFERENCES services(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS realtime_notifications (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  user_id INT NULL,
+  user_role ENUM('admin','barber','client') NOT NULL,
+  type ENUM('new_appointment','status_change','reminder','no_show_auto') NOT NULL,
+  title VARCHAR(255) NOT NULL,
+  message TEXT NOT NULL,
+  read_at TIMESTAMP NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_realtime_user (user_id, user_role, read_at),
+  INDEX idx_realtime_created (created_at)
+);
+
+CREATE TABLE IF NOT EXISTS attendance_logs (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  appointment_id INT NOT NULL,
+  action ENUM('no-show-auto','status-change','reminder-sent') NOT NULL,
+  performed_by INT NULL,
+  performed_role ENUM('admin','barber','system') NULL,
+  notes TEXT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (appointment_id) REFERENCES appointments(id) ON DELETE CASCADE,
+  INDEX idx_attendance_appointment (appointment_id),
+  INDEX idx_attendance_created (created_at)
+);
+

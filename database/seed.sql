@@ -71,3 +71,17 @@ INSERT INTO admin_users (username, password_hash, role, entity_id, is_active) VA
   ('marco.rivas', '$2a$10$g1oGIZFBjuPp4CJUrMG9C.9St1YnVOK7QjfI8A5gyfF7.dpiLzAzW', 'barber', @marco_id, 1),
   ('juanjose.henriquez', '$2a$10$N2z06ewFykAxmRibg8UBBuze6yUsXagG5RVSsCdZZKTx65lOsgsyC', 'barber', @juan_id, 1),
   ('admin', '$2a$10$xpMJeJ3z9UW2T2Q7CApntuL5nGOwMo5MKfBwRM.SYVybEYOO96YVi', 'admin', NULL, 1);
+
+INSERT INTO recommendations (service_id, text, `order`, is_active) VALUES
+  (1, 'Lava tu cabello con agua tibia y shampoo suave al menos 2 veces por semana.', 1, 1),
+  (1, 'Usa cera mate para un acabado natural y fácil de peinar.', 2, 1),
+  (2, 'Aplica aceite para barba después del baño para mejores resultados.', 1, 1),
+  (2, 'Recorta la barba cada 2 semanas para mantener la forma.', 2, 1),
+  (3, 'Evita exfoliar la zona de la barba más de 2 veces por semana.', 1, 1),
+  (4, 'Diseño de cejas: evita depilar por 2 semanas después del diseño para mantener la forma.', 1, 1),
+  (7, 'Aprovecha el combo y pregunta por nuestros productos exclusivos de mantenimiento.', 1, 1),
+  (8, 'Evita el sol directo por 24 horas después de la limpieza facial.', 1, 1)
+ON DUPLICATE KEY UPDATE
+  text = VALUES(text),
+  `order` = VALUES(`order`),
+  is_active = VALUES(is_active);

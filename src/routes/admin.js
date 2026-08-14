@@ -45,12 +45,22 @@ const formatDate = (d) => {
 const getBarberId = (req) => {
   if (req.user.role !== 'barber') return null;
   if (req.user.entity_id) return req.user.entity_id;
-  const username = req.user.username || '';
-  const parts = username.replace(/\./g, ' ').split(' ').filter(Boolean);
-  if (!parts.length) return null;
-  const likePattern = parts.map(p => `%${p}%`).join('');
-  const [rows] = pool.execute(`SELECT id FROM barbers WHERE name LIKE ? LIMIT 1`, [likePattern]);
-  return rows[0]?.id || null;
+
+  const username = (req.user.username || '').trim();
+  if (!username) return null;
+
+  let [rows] = pool.execute('SELECT id FROM barbers WHERE name = ? LIMIT 1', [username]);
+  if (!rows[0]) {
+    const normalized = username.replace(/\./g, ' ').replace(/\s+/g, ' ').trim();
+    const parts = normalized.split(' ').filter(Boolean);
+    if (parts.length) {
+      const likePattern = parts.map(p => `%${p}%`).join('');
+      [rows] = pool.execute('SELECT id FROM barbers WHERE name LIKE ? LIMIT 1', [likePattern]);
+    }
+  }
+  const barberId = rows[0]?.id || null;
+  console.log('[getBarberId] username=', username, 'entity_id=', req.user.entity_id, 'resolved barberId=', barberId);
+  return barberId;
 };
 
 const isAdmin = (req) => req.user.role === 'admin';
@@ -231,6 +241,7 @@ router.get('/revenue', async (req, res) => {
     const barberFilter = barberId ? 'AND a.barber_id = ?' : '';
     const currentParams = barberId ? [formatDate(currentStart), formatDate(currentEnd), barberId] : [formatDate(currentStart), formatDate(currentEnd)];
     const previousParams = barberId ? [formatDate(previousStart), formatDate(previousEnd), barberId] : [formatDate(previousStart), formatDate(previousEnd)];
+    console.log('[REVENUE] barberId=', barberId, 'period=', period, 'currentParams=', currentParams);
 
     const [currentRows] = await pool.execute(
       `SELECT SUM(s.price_cents) AS total_revenue, COUNT(a.id) AS total_appointments
@@ -805,9 +816,6 @@ router.delete('/services/:id', async (req, res) => {
 
 router.post('/clients', async (req, res) => {
   try {
-    if (!isAdmin(req)) {
-      return res.status(403).json({ error: 'No tienes permisos para crear clientes' });
-    }
     const { name, phone, email, notes } = req.body;
     if (!name || !String(name).trim() || !phone || !/^\d{10}$/.test(String(phone).trim())) {
       return res.status(400).json({ error: 'Nombre y teléfono (10 dígitos) son requeridos' });
@@ -923,6 +931,7 @@ router.get('/barbers/agenda', async (req, res) => {
     const targetDate = date || `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 
     const barberId = getBarberId(req);
+    console.log('[AGENDA_REQUEST] username=', req.user?.username, 'role=', req.user?.role, 'entity_id=', req.user?.entity_id, 'resolved barberId=', barberId, 'date=', targetDate);
     let barbersQuery = 'SELECT id, name FROM barbers WHERE is_active = 1';
     const barbersParams = [];
     if (barberId) {
@@ -973,6 +982,52 @@ router.get('/barbers/agenda', async (req, res) => {
     res.json({ date: targetDate, agenda });
   } catch (error) {
     console.error('Error fetching barbers agenda:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+router.get('/realtime-notifications', async (req, res) => {
+  try {
+    const userRole = req.user.role;
+    const userId = req.user.id;
+    const since = req.query.since ? new Date(req.query.since) : new Date(Date.now() - 24 * 60 * 60 * 1000);
+
+    let query = 'SELECT * FROM realtime_notifications WHERE created_at >= ?';
+    const params = [since];
+
+    if (userRole === 'barber') {
+      query += ' AND user_id = ? AND user_role = ?';
+      params.push(userId, 'barber');
+    } else if (userRole === 'admin') {
+      query += ' AND user_role IN (?, ?)';
+      params.push('admin', 'barber');
+    } else {
+      query += ' AND user_id = ? AND user_role = ?';
+      params.push(userId, 'client');
+    }
+
+    query += ' ORDER BY created_at DESC LIMIT 50';
+    const [rows] = await pool.execute(query, params);
+
+    await pool.execute(
+      'UPDATE realtime_notifications SET read_at = NOW() WHERE user_id = ? AND user_role = ? AND read_at IS NULL',
+      [userId, userRole]
+    );
+
+    res.json(rows);
+  } catch (error) {
+    console.error('Error fetching realtime notifications:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+router.post('/attendance/run', requireRole(['admin']), async (req, res) => {
+  try {
+    const { markNoShows } = require('../utils/attendance');
+    const marked = await markNoShows();
+    res.json({ message: 'Asistencia procesada', marked });
+  } catch (error) {
+    console.error('Error running attendance automation:', error);
     res.status(500).json({ error: 'Error interno del servidor' });
   }
 });

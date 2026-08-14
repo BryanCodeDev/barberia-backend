@@ -2,10 +2,52 @@ const express = require('express');
 const pool = require('../config/database');
 const { authenticateToken, requireRole } = require('../middleware/auth');
 const { getAvailableTimeSlots } = require('../utils/availability');
-const { sendBookingConfirmation } = require('../utils/notifications');
+const { sendBookingConfirmation, sendRealtimeNotification } = require('../utils/notifications');
 require('dotenv').config();
 
 const router = express.Router();
+
+const findOrCreateClient = async ({ name, phone, email, googleId }) => {
+  const trimmedPhone = String(phone || '').trim();
+  const trimmedEmail = String(email || '').trim().toLowerCase();
+  let client = null;
+
+  if (trimmedPhone) {
+    const [byPhone] = await pool.execute('SELECT * FROM clients WHERE phone = ? LIMIT 1', [trimmedPhone]);
+    if (byPhone[0]) client = byPhone[0];
+  }
+
+  if (!client && trimmedEmail) {
+    const [byEmail] = await pool.execute('SELECT * FROM clients WHERE email = ? LIMIT 1', [trimmedEmail]);
+    if (byEmail[0]) client = byEmail[0];
+  }
+
+  if (!client && googleId) {
+    const [byGoogle] = await pool.execute('SELECT * FROM clients WHERE google_id = ? LIMIT 1', [googleId]);
+    if (byGoogle[0]) client = byGoogle[0];
+  }
+
+  if (client) {
+    if (trimmedEmail && client.email !== trimmedEmail) {
+      await pool.execute('UPDATE clients SET email = ? WHERE id = ?', [trimmedEmail, client.id]);
+    }
+    if (trimmedPhone && client.phone !== trimmedPhone) {
+      await pool.execute('UPDATE clients SET phone = ? WHERE id = ?', [trimmedPhone, client.id]);
+    }
+    if (googleId && !client.google_id) {
+      await pool.execute('UPDATE clients SET google_id = ? WHERE id = ?', [googleId, client.id]);
+    }
+    return client;
+  }
+
+  const [result] = await pool.execute(
+    'INSERT INTO clients (name, phone, email, google_id) VALUES (?, ?, ?, ?)',
+    [name, trimmedPhone, trimmedEmail || null, googleId || null]
+  );
+
+  const [rows] = await pool.execute('SELECT * FROM clients WHERE id = ? LIMIT 1', [result.insertId]);
+  return rows[0];
+};
 
 router.get('/available-slots', async (req, res) => {
   try {
@@ -35,11 +77,17 @@ router.get('/available-slots', async (req, res) => {
 
 router.post('/', async (req, res) => {
   try {
-    const { client_id, service_id, workstation_id, appointment_date, appointment_time, client_message } = req.body;
+    const { client_id, service_id, workstation_id, appointment_date, appointment_time, client_message, client_name, client_phone, client_email } = req.body;
 
-    if (!client_id || !Number.isInteger(Number(client_id))) {
-      return res.status(400).json({ error: 'El cliente es requerido' });
+    let finalClientId = client_id;
+    let clientName = client_name;
+    let clientPhone = client_phone;
+    let clientEmail = client_email;
+
+    if (!finalClientId && (!clientPhone || !clientEmail)) {
+      return res.status(400).json({ error: 'Debes proporcionar teléfono y correo electrónico para agendar.' });
     }
+
     if (!service_id || !Number.isInteger(Number(service_id))) {
       return res.status(400).json({ error: 'El servicio es requerido' });
     }
@@ -51,9 +99,6 @@ router.post('/', async (req, res) => {
     }
     if (workstation_id !== undefined && workstation_id !== null && !Number.isInteger(Number(workstation_id))) {
       return res.status(400).json({ error: 'La estación es inválida' });
-    }
-    if (client_message && typeof client_message !== 'string') {
-      return res.status(400).json({ error: 'El mensaje es inválido' });
     }
 
     const [serviceResult] = await pool.execute('SELECT duration_minutes FROM services WHERE id = ? AND is_active = 1', [service_id]);
@@ -70,6 +115,25 @@ router.post('/', async (req, res) => {
       return res.status(409).json({ error: 'Este horario ya no está disponible' });
     }
 
+    if (!finalClientId) {
+      const client = await findOrCreateClient({
+        name: clientName,
+        phone: clientPhone,
+        email: clientEmail,
+      });
+      finalClientId = client.id;
+      clientName = client.name;
+      clientPhone = client.phone;
+      clientEmail = client.email;
+    } else {
+      const [existingClient] = await pool.execute('SELECT * FROM clients WHERE id = ? LIMIT 1', [finalClientId]);
+      if (existingClient[0]) {
+        clientName = existingClient[0].name;
+        clientPhone = existingClient[0].phone;
+        clientEmail = existingClient[0].email;
+      }
+    }
+
     let barberId = null;
     if (workstation_id) {
       const [wsRows] = await pool.execute('SELECT barber_id FROM workstations WHERE id = ?', [workstation_id]);
@@ -80,17 +144,30 @@ router.post('/', async (req, res) => {
 
     const [result] = await pool.execute(
       'INSERT INTO appointments (client_id, service_id, workstation_id, barber_id, appointment_date, appointment_time, duration_minutes, status, client_message) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [client_id, service_id, workstation_id || null, barberId, appointment_date, appointment_time, duration_minutes, 'pending', client_message || '']
+      [finalClientId, service_id, workstation_id || null, barberId, appointment_date, appointment_time, duration_minutes, 'pending', client_message || '']
     );
 
     const [appointment] = await pool.execute(
-      'SELECT a.*, s.name AS service_name, s.duration_minutes AS service_duration, s.price_cents, c.name AS client_name, c.phone AS client_phone FROM appointments a LEFT JOIN services s ON a.service_id = s.id LEFT JOIN clients c ON a.client_id = c.id WHERE a.id = ?',
+      'SELECT a.*, s.name AS service_name, s.duration_minutes AS service_duration, s.price_cents, c.name AS client_name, c.phone AS client_phone, c.email AS client_email FROM appointments a LEFT JOIN services s ON a.service_id = s.id LEFT JOIN clients c ON a.client_id = c.id WHERE a.id = ?',
       [result.insertId]
     );
 
     sendBookingConfirmation(appointment[0]).catch((err) => {
       console.error('Error sending booking confirmation:', err);
     });
+
+    if (barberId) {
+      const [barber] = await pool.execute('SELECT id, name FROM barbers WHERE id = ? LIMIT 1', [barberId]);
+      if (barber[0]) {
+        sendRealtimeNotification({
+          userId: barber[0].id,
+          userRole: 'barber',
+          type: 'new_appointment',
+          title: 'Nueva cita agendada',
+          message: `${clientName} agendó ${appointment[0].service_name} para ${appointment_date} ${appointment_time}`,
+        }).catch(() => {});
+      }
+    }
 
     res.status(201).json({ id: result.insertId, message: 'Cita creada exitosamente', appointment: appointment[0] });
   } catch (error) {
@@ -130,8 +207,18 @@ router.patch('/:id/status', authenticateToken, requireRole(['admin', 'barber']),
       return res.status(404).json({ error: 'Cita no encontrada' });
     }
 
-    if (req.user.role === 'barber' && existing[0].barber_id !== req.user.entity_id) {
-      return res.status(403).json({ error: 'No tienes permisos para cambiar el estado de esta cita' });
+    const appointment = existing[0];
+
+    if (status === 'no-show' && req.user.role === 'barber') {
+      if (appointment.barber_id !== req.user.entity_id) {
+        return res.status(403).json({ error: 'Solo puedes marcar no-asistencia en tus propias citas.' });
+      }
+      await pool.execute(
+        'INSERT INTO attendance_logs (appointment_id, action, performed_by, performed_role, notes) VALUES (?, ?, ?, ?, ?)',
+        [id, 'no-show-auto', req.user.id, 'barber', 'Marcado por barbero desde panel']
+      );
+    } else if (req.user.role === 'barber' && appointment.barber_id !== req.user.entity_id) {
+      return res.status(403).json({ error: 'No tienes permisos para cambiar esta cita' });
     }
 
     await pool.execute(
