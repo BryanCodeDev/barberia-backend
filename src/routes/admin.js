@@ -448,12 +448,13 @@ router.get('/clients', async (req, res) => {
 
     const barberId = getBarberId(req);
     if (barberId) {
-      query += ' AND (a.barber_id = ? OR a.barber_id IS NULL)';
+      query += ' WHERE (a.barber_id = ? OR a.barber_id IS NULL)';
       params.push(barberId);
     }
 
     if (search) {
-      query += ' WHERE c.name LIKE ? OR c.phone LIKE ?';
+      query += barberId ? ' AND' : ' WHERE';
+      query += ' (c.name LIKE ? OR c.phone LIKE ?)';
       params.push(`%${search}%`, `%${search}%`);
     }
 
