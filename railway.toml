@@ -2,7 +2,7 @@
   command = "cd backend && npm ci"
 
 [[services]]
-  name = "barber-trebol-api"
+  name = "barberia-el-bronx-api"
   command = "cd backend && npm start"
   port = 3001
   healthcheck = "/api/health"

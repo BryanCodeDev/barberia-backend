@@ -41,7 +41,7 @@ const sendReminder = async (appointment) => {
 };
 
 const sendOtpCode = async (phone, code) => {
-  const message = `[Barber Trebol] Tu código de verificación es: ${code}. Código válido por 5 minutos.`;
+  const message = `[Barbería El Bronx] Tu código de verificación es: ${code}. Código válido por 5 minutos.`;
   return sendNotification(null, 'whatsapp', phone, message);
 };
 

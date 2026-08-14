@@ -1,10 +1,10 @@
 INSERT INTO business_settings (id, business_name, address, phone, whatsapp_number, email, timezone, max_advance_booking_days, min_cancel_hours, buffer_minutes_between_appointments)
 VALUES (
   1,
-  'Barber Trebol',
+  'BARBERÍA EL BRONX',
   'CALLE 3 #4 - 77 EDIFICIO INFINITO LOCAL 01, Mosquera, Cundinamarca',
-  '+57 317 368 1490',
-  '573113670631',
+  '+301 566 7129',
+  '3015667129',
   'mastercodecompany@gmail.com',
   'America/Bogota',
   30,
@@ -25,8 +25,8 @@ ON DUPLICATE KEY UPDATE
 DELETE FROM barbers WHERE name IN ('Marco Rivas', 'Juan José Henríquez');
 
 INSERT INTO barbers (name, email, phone, is_active) VALUES
-  ('Marco Rivas', 'marco@barbertrebol.com', '+57 317 368 1490', 1),
-  ('Juan José Henríquez', 'juanjose@barbertrebol.com', '+57 300 123 4567', 1)
+  ('Marco Rivas', 'marco@barbertrebol.com', '+301 566 7129', 1),
+  ('Juan José Henríquez', 'juanjose@barbertrebol.com', '+300 180 5635', 1)
 ON DUPLICATE KEY UPDATE
   email = VALUES(email),
   phone = VALUES(phone),

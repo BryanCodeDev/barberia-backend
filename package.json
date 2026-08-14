@@ -1,5 +1,5 @@
 {
-  "name": "barberia-el-trebol-backend",
+  "name": "barberia-el-bronx-backend",
   "version": "1.0.0",
   "description": "Backend API for Barberia el Trebol - Automated appointment scheduling",
   "main": "src/index.js",

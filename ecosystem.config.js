@@ -1,7 +1,7 @@
 module.exports = {
   apps: [
     {
-      name: 'barber-trebol-api',
+      name: 'barberia-el-bronx-api',
       script: './src/index.js',
       cwd: '/app/backend',
       instances: 1,
