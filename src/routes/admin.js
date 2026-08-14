@@ -59,16 +59,32 @@ const appendBarberFilter = (params, req) => {
 router.get('/stats', async (req, res) => {
   try {
     const barberFilter = baseAppointmentWhere(req);
-    const [total] = await pool.execute(`SELECT COUNT(*) AS count FROM appointments a WHERE ${barberFilter}`, getBarberId(req) ? [getBarberId(req)] : []);
-    const [pending] = await pool.execute(`SELECT COUNT(*) AS count FROM appointments a WHERE ${barberFilter} AND a.status = 'pending'`, getBarberId(req) ? [getBarberId(req)] : []);
-    const [confirmed] = await pool.execute(`SELECT COUNT(*) AS count FROM appointments a WHERE ${barberFilter} AND a.status = 'confirmed'`, getBarberId(req) ? [getBarberId(req)] : []);
-    const [cancelled] = await pool.execute(`SELECT COUNT(*) AS count FROM appointments a WHERE ${barberFilter} AND a.status = 'cancelled'`, getBarberId(req) ? [getBarberId(req)] : []);
+    const barberId = getBarberId(req);
+    const baseParams = barberId ? [barberId] : [];
+
+    const [total] = await pool.execute(`SELECT COUNT(*) AS count FROM appointments a WHERE ${barberFilter}`, baseParams);
+    const [pending] = await pool.execute(`SELECT COUNT(*) AS count FROM appointments a WHERE ${barberFilter} AND a.status = 'pending'`, baseParams);
+    const [confirmed] = await pool.execute(`SELECT COUNT(*) AS count FROM appointments a WHERE ${barberFilter} AND a.status = 'confirmed'`, baseParams);
+    const [cancelled] = await pool.execute(`SELECT COUNT(*) AS count FROM appointments a WHERE ${barberFilter} AND a.status = 'cancelled'`, baseParams);
     const now = new Date();
     const year = now.getFullYear();
     const month = String(now.getMonth() + 1).padStart(2, '0');
     const day = String(now.getDate()).padStart(2, '0');
     const today = `${year}-${month}-${day}`;
-    const [todayCount] = await pool.execute(`SELECT COUNT(*) AS count FROM appointments a WHERE ${barberFilter} AND a.appointment_date = ?`, getBarberId(req) ? [getBarberId(req), today] : [today]);
+    const [todayCount] = await pool.execute(`SELECT COUNT(*) AS count FROM appointments a WHERE ${barberFilter} AND a.appointment_date = ?`, barberId ? [barberId, today] : [today]);
+
+    const [confirmedRevenue] = await pool.execute(
+      `SELECT COALESCE(SUM(s.price_cents), 0) AS total FROM appointments a LEFT JOIN services s ON a.service_id = s.id WHERE ${barberFilter} AND a.status = 'confirmed'`,
+      baseParams
+    );
+    const [completedRevenue] = await pool.execute(
+      `SELECT COALESCE(SUM(s.price_cents), 0) AS total FROM appointments a LEFT JOIN services s ON a.service_id = s.id WHERE ${barberFilter} AND a.status = 'completed'`,
+      baseParams
+    );
+    const [todayRevenue] = await pool.execute(
+      `SELECT COALESCE(SUM(s.price_cents), 0) AS total FROM appointments a LEFT JOIN services s ON a.service_id = s.id WHERE ${barberFilter} AND a.appointment_date = ? AND a.status = 'completed'`,
+      barberId ? [barberId, today] : [today]
+    );
 
     res.json({
       total: total[0].count,
@@ -76,6 +92,9 @@ router.get('/stats', async (req, res) => {
       confirmed: confirmed[0].count,
       cancelled: cancelled[0].count,
       today: todayCount[0].count,
+      confirmed_revenue_cents: confirmedRevenue[0].total || 0,
+      completed_revenue_cents: completedRevenue[0].total || 0,
+      today_revenue_cents: todayRevenue[0].total || 0,
     });
   } catch (error) {
     console.error('Error fetching stats:', error);
@@ -208,7 +227,29 @@ router.get('/revenue', async (req, res) => {
       `SELECT SUM(s.price_cents) AS total_revenue, COUNT(a.id) AS total_appointments
        FROM appointments a
        LEFT JOIN services s ON a.service_id = s.id
+       WHERE a.status IN ('completed', 'confirmed')
+         AND a.appointment_date >= ?
+         AND a.appointment_date < ?
+         ${barberFilter}`,
+      currentParams
+    );
+
+    const [currentCompletedRows] = await pool.execute(
+      `SELECT SUM(s.price_cents) AS total_revenue, COUNT(a.id) AS total_appointments
+       FROM appointments a
+       LEFT JOIN services s ON a.service_id = s.id
        WHERE a.status = 'completed'
+         AND a.appointment_date >= ?
+         AND a.appointment_date < ?
+         ${barberFilter}`,
+      currentParams
+    );
+
+    const [currentConfirmedRows] = await pool.execute(
+      `SELECT SUM(s.price_cents) AS total_revenue, COUNT(a.id) AS total_appointments
+       FROM appointments a
+       LEFT JOIN services s ON a.service_id = s.id
+       WHERE a.status = 'confirmed'
          AND a.appointment_date >= ?
          AND a.appointment_date < ?
          ${barberFilter}`,
@@ -219,7 +260,29 @@ router.get('/revenue', async (req, res) => {
       `SELECT SUM(s.price_cents) AS total_revenue, COUNT(a.id) AS total_appointments
        FROM appointments a
        LEFT JOIN services s ON a.service_id = s.id
+       WHERE a.status IN ('completed', 'confirmed')
+         AND a.appointment_date >= ?
+         AND a.appointment_date < ?
+         ${barberFilter}`,
+      previousParams
+    );
+
+    const [previousCompletedRows] = await pool.execute(
+      `SELECT SUM(s.price_cents) AS total_revenue, COUNT(a.id) AS total_appointments
+       FROM appointments a
+       LEFT JOIN services s ON a.service_id = s.id
        WHERE a.status = 'completed'
+         AND a.appointment_date >= ?
+         AND a.appointment_date < ?
+         ${barberFilter}`,
+      previousParams
+    );
+
+    const [previousConfirmedRows] = await pool.execute(
+      `SELECT SUM(s.price_cents) AS total_revenue, COUNT(a.id) AS total_appointments
+       FROM appointments a
+       LEFT JOIN services s ON a.service_id = s.id
+       WHERE a.status = 'confirmed'
          AND a.appointment_date >= ?
          AND a.appointment_date < ?
          ${barberFilter}`,
@@ -228,6 +291,10 @@ router.get('/revenue', async (req, res) => {
 
     const current = currentRows[0] || { total_revenue: 0, total_appointments: 0 };
     const previous = previousRows[0] || { total_revenue: 0, total_appointments: 0 };
+    const currentCompleted = currentCompletedRows[0] || { total_revenue: 0, total_appointments: 0 };
+    const currentConfirmed = currentConfirmedRows[0] || { total_revenue: 0, total_appointments: 0 };
+    const previousCompleted = previousCompletedRows[0] || { total_revenue: 0, total_appointments: 0 };
+    const previousConfirmed = previousConfirmedRows[0] || { total_revenue: 0, total_appointments: 0 };
 
     const currentRevenue = current.total_revenue || 0;
     const previousRevenue = previous.total_revenue || 0;
@@ -243,10 +310,18 @@ router.get('/revenue', async (req, res) => {
         revenue_cents: currentRevenue,
         appointments: currentCount,
         average_ticket_cents: averageTicket,
+        completed_revenue_cents: currentCompleted.total_revenue || 0,
+        completed_appointments: currentCompleted.total_appointments || 0,
+        confirmed_revenue_cents: currentConfirmed.total_revenue || 0,
+        confirmed_appointments: currentConfirmed.total_appointments || 0,
       },
       previous: {
         revenue_cents: previousRevenue,
         appointments: previousCount,
+        completed_revenue_cents: previousCompleted.total_revenue || 0,
+        completed_appointments: previousCompleted.total_appointments || 0,
+        confirmed_revenue_cents: previousConfirmed.total_revenue || 0,
+        confirmed_appointments: previousConfirmed.total_appointments || 0,
       },
       change_percent: changePercent,
     });
@@ -271,16 +346,43 @@ router.get('/performance', async (req, res) => {
        FROM appointments a
        LEFT JOIN barbers b ON a.barber_id = b.id
        LEFT JOIN services s ON a.service_id = s.id
+       WHERE a.status IN ('completed', 'confirmed')
+         AND a.appointment_date >= ?
+         AND a.appointment_date < ?
+         ${barberFilter}
+       GROUP BY b.id, b.name
+       ORDER BY revenue_cents DESC`,
+       barberId ? [...params, barberId, ...havingParams] : params
+    );
+
+    const [byBarberCompleted] = await pool.execute(
+      `SELECT b.id AS barber_id, b.name AS barber_name, COUNT(a.id) AS appointments, COALESCE(SUM(s.price_cents), 0) AS revenue_cents
+       FROM appointments a
+       LEFT JOIN barbers b ON a.barber_id = b.id
+       LEFT JOIN services s ON a.service_id = s.id
        WHERE a.status = 'completed'
          AND a.appointment_date >= ?
          AND a.appointment_date < ?
          ${barberFilter}
        GROUP BY b.id, b.name
        ORDER BY revenue_cents DESC`,
-      barberId ? [...params, barberId, ...havingParams] : params
+       barberId ? [...params, barberId, ...havingParams] : params
     );
 
     const [byService] = await pool.execute(
+      `SELECT s.id AS service_id, s.name AS service_name, COUNT(a.id) AS appointments, COALESCE(SUM(s.price_cents), 0) AS revenue_cents
+       FROM appointments a
+       LEFT JOIN services s ON a.service_id = s.id
+       WHERE a.status IN ('completed', 'confirmed')
+         AND a.appointment_date >= ?
+         AND a.appointment_date < ?
+         ${barberFilter}
+       GROUP BY s.id, s.name
+       ORDER BY appointments DESC`,
+       barberId ? [...params, barberId] : params
+    );
+
+    const [byServiceCompleted] = await pool.execute(
       `SELECT s.id AS service_id, s.name AS service_name, COUNT(a.id) AS appointments, COALESCE(SUM(s.price_cents), 0) AS revenue_cents
        FROM appointments a
        LEFT JOIN services s ON a.service_id = s.id
@@ -290,7 +392,7 @@ router.get('/performance', async (req, res) => {
          ${barberFilter}
        GROUP BY s.id, s.name
        ORDER BY appointments DESC`,
-      barberId ? [...params, barberId] : params
+       barberId ? [...params, barberId] : params
     );
 
     const [byHour] = await pool.execute(
@@ -320,7 +422,9 @@ router.get('/performance', async (req, res) => {
     res.json({
       period,
       by_barber: byBarber,
+      by_barber_completed: byBarberCompleted,
       by_service: byService,
+      by_service_completed: byServiceCompleted,
       by_hour: byHour,
       by_weekday: byWeekday,
     });

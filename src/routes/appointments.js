@@ -139,7 +139,12 @@ router.patch('/:id/status', authenticateToken, requireRole(['admin', 'barber']),
       [status, cancelled_reason || null, status, 'cancelled', id]
     );
 
-    res.json({ message: 'Estado actualizado exitosamente' });
+    const [updated] = await pool.execute(
+      'SELECT a.*, s.name AS service_name, s.duration_minutes AS service_duration, s.price_cents, c.name AS client_name, c.phone AS client_phone FROM appointments a LEFT JOIN services s ON a.service_id = s.id LEFT JOIN clients c ON a.client_id = c.id WHERE a.id = ?',
+      [id]
+    );
+
+    res.json({ message: 'Estado actualizado exitosamente', appointment: updated[0] });
   } catch (error) {
     console.error('Error updating appointment:', error);
     res.status(500).json({ error: 'Error interno del servidor' });
