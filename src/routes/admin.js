@@ -977,11 +977,4 @@ router.get('/barbers/agenda', async (req, res) => {
   }
 });
 
-    res.json({ date: targetDate, agenda });
-  } catch (error) {
-    console.error('Error fetching barbers agenda:', error);
-    res.status(500).json({ error: 'Error interno del servidor' });
-  }
-});
-
 module.exports = router;
