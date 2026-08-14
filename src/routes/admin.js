@@ -42,7 +42,16 @@ const formatDate = (d) => {
   return `${year}-${month}-${day}`;
 };
 
-const getBarberId = (req) => req.user.role === 'barber' ? req.user.entity_id : null;
+const getBarberId = (req) => {
+  if (req.user.role !== 'barber') return null;
+  if (req.user.entity_id) return req.user.entity_id;
+  const username = req.user.username || '';
+  const parts = username.replace(/\./g, ' ').split(' ').filter(Boolean);
+  if (!parts.length) return null;
+  const likePattern = parts.map(p => `%${p}%`).join('');
+  const [rows] = pool.execute(`SELECT id FROM barbers WHERE name LIKE ? LIMIT 1`, [likePattern]);
+  return rows[0]?.id || null;
+};
 
 const isAdmin = (req) => req.user.role === 'admin';
 
@@ -922,12 +931,13 @@ router.get('/barbers/agenda', async (req, res) => {
     }
     barbersQuery += ' ORDER BY name ASC';
     const [barbers] = await pool.execute(barbersQuery, barbersParams);
+    console.log('[AGENDA] user role=', req.user?.role, 'entity_id=', req.user?.entity_id, 'barberId=', barberId, 'date=', targetDate, 'barbers found=', barbers.length, barbers.map(b => ({ id: b.id, name: b.name })));
 
     const [appointments] = await pool.execute(
       `SELECT a.id, a.appointment_time, a.duration_minutes, a.status, a.client_message,
               s.name AS service_name, s.price_cents,
               c.name AS client_name, c.phone AS client_phone,
-              w.name AS workstation_name
+              w.name AS workstation_name, a.barber_id
        FROM appointments a
        LEFT JOIN services s ON a.service_id = s.id
        LEFT JOIN clients c ON a.client_id = c.id
@@ -938,6 +948,7 @@ router.get('/barbers/agenda', async (req, res) => {
        ORDER BY a.appointment_time ASC`,
       barberId ? [targetDate, barberId] : [targetDate]
     );
+    console.log('[AGENDA] appointments found=', appointments.length, appointments.map(a => ({ id: a.id, barber_id: a.barber_id, time: a.appointment_time, status: a.status })));
 
     const agenda = barbers.map((barber) => {
       const barberAppointments = appointments.filter((apt) => apt.barber_id === barber.id);
@@ -958,6 +969,13 @@ router.get('/barbers/agenda', async (req, res) => {
         })),
       };
     });
+
+    res.json({ date: targetDate, agenda });
+  } catch (error) {
+    console.error('Error fetching barbers agenda:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
 
     res.json({ date: targetDate, agenda });
   } catch (error) {
