@@ -21,7 +21,7 @@ const serviceRoutes = require('./routes/services');
 const clientRoutes = require('./routes/clients');
 const adminRoutes = require('./routes/admin');
 const workstationRoutes = require('./routes/workstations');
-const { dropAndMigrate } = require('./middleware/migrate');
+const { migrate, dropAndMigrate } = require('./middleware/migrate');
 
 const app = express();
 
@@ -154,7 +154,11 @@ async function waitForDatabase() {
 
 async function startServer() {
   await waitForDatabase();
-  await dropAndMigrate();
+  if (process.env.NODE_ENV === 'production') {
+    await migrate();
+  } else {
+    await dropAndMigrate();
+  }
 
   const server = app.listen(PORT, () => {
     logger.info(`Servidor backend corriendo en puerto ${PORT} [${process.env.NODE_ENV || 'development'}]`);
