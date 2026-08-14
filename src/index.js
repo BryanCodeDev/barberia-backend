@@ -124,7 +124,7 @@ app.use('/api/admin', authenticateToken, adminRoutes);
 
 app.use(errorHandler);
 
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.NODE_ENV === 'production' ? 3001 : (process.env.PORT || 3001);
 
 async function waitForDatabase() {
   if (!process.env.MYSQL_URL && !process.env.DB_HOST && !process.env.MYSQLHOST) {
