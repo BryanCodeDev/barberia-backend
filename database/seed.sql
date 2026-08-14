@@ -42,18 +42,21 @@ ON DUPLICATE KEY UPDATE
   barber_id = VALUES(barber_id),
   is_active = VALUES(is_active);
 
+UPDATE services SET is_active = 0;
+
 INSERT INTO services (name, category, duration_minutes, price_cents, description, is_popular, is_active) VALUES
-('Corte Clásico', 'corte', 35, 28000, 'Corte clásico con técnica tradicional, líneas perfectas y acabado impecable.', 1, 1),
-('Corte Moderno', 'corte', 40, 35000, 'Corte moderno con tendencias actuales, texturas y estilo urbano.', 0, 1),
-('Perfilación de Barba', 'barba', 25, 18000, 'Definición precisa de la barba con máquina y navaja, líneas limpias y acabado impecable.', 1, 1),
-('Perfilación de Cejas', 'cejas', 10, 12000, 'Diseño y perfilado de cejas con técnica precisa para un aspecto limpio y definido.', 0, 1),
-('Diseño y Tribal', 'corte', 20, 15000, 'Diseños personalizados y estilo tribal con precisión y creatividad.', 0, 1),
-('Limpieza Facial Profunda', 'premium', 45, 40000, 'Limpieza facial profunda para renovar tu piel y mantener un aspecto saludable.', 0, 1),
-('Tinturas, Mechas y Colores Planos', 'premium', 75, 100000, 'Servicio de color profesional: tinturas, mechas y colores planos con productos de alta calidad.', 0, 1),
-('Corte Sólido Dama', 'corte', 40, 35000, 'Corte sólido para dama, clásico y elegante para resaltar tu estilo.', 0, 1),
-('Corte en Capas Dama', 'corte', 45, 45000, 'Corte en capas para dama, movimiento y volumen con un resultado natural.', 0, 1),
-('Corte Señorial Dama', 'corte', 50, 55000, 'Corte señorial para dama, sofisticado y con detalles de alta precisión.', 0, 1),
-('Corte Tipo Hongo Dama', 'corte', 40, 40000, 'Corte tipo hongo para dama, moderno, práctico y con estilo.', 0, 1)
+('Corte', 'corte', 25, 25000, 'Corte profesional con técnica moderna y acabado impecable.', 1, 1),
+('Corte y Barba', 'combo', 40, 35000, 'Combo completo de corte y barba para un look perfecto.', 1, 1),
+('Servicio de Barba', 'barba', 20, 15000, 'Definición y perfilado de barba con máquina y navaja.', 0, 1),
+('Barba Pigmentada', 'barba', 30, 20000, 'Barba con pigmentación para un acabado más definido y duradero.', 0, 1),
+('Diseño de Cejas', 'cejas', 10, 7000, 'Diseño y perfilado de cejas con técnica precisa.', 0, 1),
+('Perfilado de Cejas', 'cejas', 10, 5000, 'Perfilado rápido de cejas para mantener la forma.', 0, 1),
+('Promoción Corte + Barba + Cejas', 'combo', 60, 35000, 'Paquete completo: corte, barba y cejas en una sola visita.', 1, 1),
+('Limpieza Facial Profunda', 'premium', 45, 45000, 'Vapor ozono, exfoliación, mascarilla negra y masaje facial.', 0, 1),
+('Mascarilla Negra y Masaje', 'premium', 20, 10000, 'Mascarilla negra purificante con masaje facial relajante.', 0, 1),
+('Mechas Platinado y Blanco', 'premium', 90, 180000, 'Servicio de mechas platinado y blanco con productos profesionales.', 0, 1),
+('Colores Planos', 'premium', 90, 150000, 'Aplicación de color plano profesional con acabado uniforme.', 0, 1),
+('Corte para Dama', 'corte', 40, 25000, 'Corte profesional para dama, adaptado a tu estilo y preferencias.', 1, 1)
 ON DUPLICATE KEY UPDATE
   category = VALUES(category),
   duration_minutes = VALUES(duration_minutes),

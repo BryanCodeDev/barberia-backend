@@ -906,4 +906,63 @@ router.patch('/appointments/:id', async (req, res) => {
   }
 });
 
+router.get('/barbers/agenda', async (req, res) => {
+  try {
+    const { date } = req.query;
+    const now = new Date();
+    const targetDate = date || `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+
+    const barberId = getBarberId(req);
+    let barbersQuery = 'SELECT id, name FROM barbers WHERE is_active = 1';
+    const barbersParams = [];
+    if (barberId) {
+      barbersQuery += ' AND id = ?';
+      barbersParams.push(barberId);
+    }
+    barbersQuery += ' ORDER BY name ASC';
+    const [barbers] = await pool.execute(barbersQuery, barbersParams);
+
+    const [appointments] = await pool.execute(
+      `SELECT a.id, a.appointment_time, a.duration_minutes, a.status, a.client_message,
+              s.name AS service_name, s.price_cents,
+              c.name AS client_name, c.phone AS client_phone,
+              w.name AS workstation_name
+       FROM appointments a
+       LEFT JOIN services s ON a.service_id = s.id
+       LEFT JOIN clients c ON a.client_id = c.id
+       LEFT JOIN workstations w ON a.workstation_id = w.id
+       WHERE a.appointment_date = ?
+         AND a.status != 'cancelled'
+         ${barberId ? 'AND a.barber_id = ?' : ''}
+       ORDER BY a.appointment_time ASC`,
+      barberId ? [targetDate, barberId] : [targetDate]
+    );
+
+    const agenda = barbers.map((barber) => {
+      const barberAppointments = appointments.filter((apt) => apt.barber_id === barber.id);
+      return {
+        barber_id: barber.id,
+        barber_name: barber.name,
+        appointments: barberAppointments.map((apt) => ({
+          id: apt.id,
+          appointment_time: apt.appointment_time,
+          duration_minutes: apt.duration_minutes,
+          status: apt.status,
+          service_name: apt.service_name,
+          price_cents: apt.price_cents,
+          client_name: apt.client_name,
+          client_phone: apt.client_phone,
+          workstation_name: apt.workstation_name,
+          client_message: apt.client_message,
+        })),
+      };
+    });
+
+    res.json({ date: targetDate, agenda });
+  } catch (error) {
+    console.error('Error fetching barbers agenda:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
 module.exports = router;
