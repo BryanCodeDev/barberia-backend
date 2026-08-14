@@ -1,9 +1,3 @@
-CREATE DATABASE IF NOT EXISTS barber_trebol
-  CHARACTER SET utf8mb4
-  COLLATE utf8mb4_unicode_ci;
-
-USE barber_trebol;
-
 CREATE TABLE IF NOT EXISTS barbers (
   id INT AUTO_INCREMENT PRIMARY KEY,
   name VARCHAR(100) NOT NULL UNIQUE,

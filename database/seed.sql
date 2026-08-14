@@ -1,5 +1,3 @@
-USE barber_trebol;
-
 INSERT INTO business_settings (id, business_name, address, phone, whatsapp_number, email, timezone, max_advance_booking_days, min_cancel_hours, buffer_minutes_between_appointments)
 VALUES (
   1,
