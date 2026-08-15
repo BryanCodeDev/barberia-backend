@@ -49,16 +49,13 @@ const getBarberId = (req) => {
   const username = (req.user.username || '').trim();
   if (!username) return null;
 
-  let [rows] = pool.execute('SELECT id FROM barbers WHERE name = ? LIMIT 1', [username]);
-  if (!rows[0]) {
-    const normalized = username.replace(/\./g, ' ').replace(/\s+/g, ' ').trim();
-    const parts = normalized.split(' ').filter(Boolean);
-    if (parts.length) {
-      const likePattern = parts.map(p => `%${p}%`).join('');
-      [rows] = pool.execute('SELECT id FROM barbers WHERE name LIKE ? LIMIT 1', [likePattern]);
-    }
-  }
-  const barberId = rows[0]?.id || null;
+  const [rows] = pool.execute('SELECT id, name FROM barbers WHERE is_active = 1');
+  const normalizedUsername = username.replace(/\./g, ' ').replace(/\s+/g, ' ').trim().toLowerCase();
+  const matched = rows.find((b) => {
+    const normalizedName = (b.name || '').toLowerCase();
+    return normalizedName.includes(normalizedUsername) || normalizedUsername.includes(normalizedName);
+  });
+  const barberId = matched?.id || null;
   console.log('[getBarberId] username=', username, 'entity_id=', req.user.entity_id, 'resolved barberId=', barberId);
   return barberId;
 };
