@@ -77,7 +77,9 @@ router.post('/client/request-otp', async (req, res) => {
       [String(phone).trim(), code, OTP_EXPIRY_MINUTES]
     );
 
-    await sendOtpCode(phone, code);
+    sendOtpCode(phone, code).catch((err) => {
+      console.error('Error sending OTP code:', err);
+    });
 
     res.json({
       success: true,

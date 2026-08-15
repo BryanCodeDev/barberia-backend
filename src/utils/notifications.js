@@ -2,6 +2,17 @@ const pool = require('../config/database');
 const nodemailer = require('nodemailer');
 const axios = require('axios');
 
+const updateNotification = async (appointmentId, channel, status, errorMessage = null) => {
+  try {
+    await pool.execute(
+      'UPDATE notifications SET status = ?, error_message = ? WHERE appointment_id = ? AND channel = ? AND status = ?',
+      [status, errorMessage, appointmentId || null, channel, 'pending']
+    );
+  } catch (error) {
+    console.error('Error updating notification log:', error);
+  }
+};
+
 const insertNotification = async (appointmentId, channel, recipient, status, errorMessage = null) => {
   try {
     await pool.execute(
@@ -158,13 +169,24 @@ const sendBookingConfirmation = async (appointment) => {
     </div>
   `;
 
+  if (appointment.id) {
+    if (clientPhone) {
+      await insertNotification(appointment.id, 'whatsapp', clientPhone, 'pending');
+    }
+    if (clientEmail) {
+      await insertNotification(appointment.id, 'email', clientEmail, 'pending');
+    }
+  }
+
   const whatsappOk = clientPhone ? await sendWhatsApp(clientPhone, whatsappMessage) : false;
   const emailOk = clientEmail ? await sendEmail({ to: clientEmail, subject: 'Confirmación de cita - Barbería El Bronx', html: emailHtml, text: whatsappMessage }) : false;
 
   if (appointment.id) {
-    await insertNotification(appointment.id, 'whatsapp', clientPhone, whatsappOk ? 'sent' : 'failed', whatsappOk ? null : 'WhatsApp send failed');
+    if (clientPhone) {
+      await updateNotification(appointment.id, 'whatsapp', whatsappOk ? 'sent' : 'failed', whatsappOk ? null : 'WhatsApp send failed');
+    }
     if (clientEmail) {
-      await insertNotification(appointment.id, 'email', clientEmail, emailOk ? 'sent' : 'failed', emailOk ? null : 'Email send failed');
+      await updateNotification(appointment.id, 'email', emailOk ? 'sent' : 'failed', emailOk ? null : 'Email send failed');
     }
   }
 };
@@ -172,16 +194,25 @@ const sendBookingConfirmation = async (appointment) => {
 const sendReminder = async (appointment) => {
   const message = `Recordatorio: tienes una cita mañana (${appointment.appointment_date}) a las ${appointment.appointment_time} para "${appointment.service_name}". Por favor llega 5 minutos antes.`;
 
+  if (appointment.id && appointment.client_phone) {
+    await insertNotification(appointment.id, 'whatsapp', appointment.client_phone, 'pending');
+  }
+
   const whatsappOk = appointment.client_phone ? await sendWhatsApp(appointment.client_phone, message) : false;
+
   if (appointment.id) {
-    await insertNotification(appointment.id, 'whatsapp', appointment.client_phone, whatsappOk ? 'sent' : 'failed', whatsappOk ? null : 'WhatsApp send failed');
+    await updateNotification(appointment.id, 'whatsapp', whatsappOk ? 'sent' : 'failed', whatsappOk ? null : 'WhatsApp send failed');
   }
 };
 
 const sendOtpCode = async (phone, code) => {
   const message = `[Barbería El Bronx] Tu código de verificación es: ${code}. Código válido por 5 minutos.`;
+
+  await insertNotification(null, 'whatsapp', phone, 'pending');
+
   const whatsappOk = await sendWhatsApp(phone, message);
-  await insertNotification(null, 'whatsapp', phone, whatsappOk ? 'sent' : 'failed', whatsappOk ? null : 'WhatsApp send failed');
+
+  await updateNotification(null, 'whatsapp', whatsappOk ? 'sent' : 'failed', whatsappOk ? null : 'WhatsApp send failed');
   return whatsappOk;
 };
 

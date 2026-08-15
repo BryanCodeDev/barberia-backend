@@ -22,6 +22,8 @@ const clientRoutes = require('./routes/clients');
 const adminRoutes = require('./routes/admin');
 const workstationRoutes = require('./routes/workstations');
 const { migrate, dropAndMigrate } = require('./middleware/migrate');
+const { markNoShows } = require('./utils/attendance');
+const cron = require('node-cron');
 
 const app = express();
 
@@ -163,6 +165,18 @@ async function startServer() {
   const server = app.listen(PORT, () => {
     logger.info(`Servidor backend corriendo en puerto ${PORT} [${process.env.NODE_ENV || 'development'}]`);
   });
+
+  cron.schedule('*/5 * * * *', async () => {
+    try {
+      const marked = await markNoShows();
+      if (marked > 0) {
+        logger.info(`[CRON] No-shows automáticos: ${marked} citas marcadas`);
+      }
+    } catch (error) {
+      logger.error('[CRON] Error en markNoShows:', error);
+    }
+  });
+  logger.info('[CRON] Scheduler de no-shows iniciado (cada 5 minutos)');
 
   server.on('error', (err) => {
     logger.error('Error en servidor HTTP', err);

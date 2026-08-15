@@ -14,8 +14,8 @@ const markNoShows = async () => {
        LEFT JOIN clients c ON a.client_id = c.id
        WHERE a.appointment_date = ?
          AND a.appointment_time <= ?
-         AND a.status IN ('pending', 'confirmed')`,
-      [currentDate, currentTime]
+         AND a.status = 'confirmed'`,
+       [currentDate, currentTime]
     );
 
     const fifteenMinutesAgo = new Date(now.getTime() - 15 * 60 * 1000);

@@ -84,8 +84,8 @@ router.post('/', async (req, res) => {
     let clientPhone = client_phone;
     let clientEmail = client_email;
 
-    if (!finalClientId && (!clientPhone || !clientEmail)) {
-      return res.status(400).json({ error: 'Debes proporcionar teléfono y correo electrónico para agendar.' });
+    if (!finalClientId && !clientPhone) {
+      return res.status(400).json({ error: 'Debes proporcionar un teléfono para agendar.' });
     }
 
     if (!service_id || !Number.isInteger(Number(service_id))) {
