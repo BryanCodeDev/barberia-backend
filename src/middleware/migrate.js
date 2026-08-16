@@ -66,6 +66,8 @@ async function migrate() {
       }
     }
 
+    await connection.query('ALTER TABLE sessions DROP INDEX uk_user_active_session');
+
     const seedPath = resolveDbPath('seed.sql');
     const seedSQL = fs.readFileSync(seedPath, 'utf8');
     const seedStatements = seedSQL.split(';').filter((s) => s.trim());
