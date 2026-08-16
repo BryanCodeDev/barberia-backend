@@ -1,11 +1,34 @@
 const express = require('express');
 const pool = require('../config/database');
 const { authenticateToken } = require('../middleware/auth');
+const { validate } = require('../middleware/validate');
+const { clientCreationLimiter } = require('../middleware/rateLimiter');
 require('dotenv').config();
 
 const router = express.Router();
 
-router.post('/', async (req, res) => {
+const createClientSchema = {
+  body: {
+    name: {
+      required: true,
+      requiredMessage: 'El nombre es requerido',
+      minLength: 2,
+      minLengthMessage: 'El nombre debe tener al menos 2 caracteres',
+    },
+    phone: {
+      required: true,
+      requiredMessage: 'El teléfono es requerido',
+      pattern: /^\d{10}$/,
+      patternMessage: 'El teléfono debe tener 10 dígitos',
+    },
+    email: {
+      pattern: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
+      patternMessage: 'Email inválido',
+    },
+  },
+};
+
+router.post('/', clientCreationLimiter, validate(createClientSchema), async (req, res) => {
   try {
     const { name, phone, email, notes } = req.body;
 
@@ -36,20 +59,42 @@ router.post('/', async (req, res) => {
   }
 });
 
-router.get('/:id', async (req, res) => {
+router.get('/:id', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
-    const [client] = await pool.execute('SELECT id, name, phone, email, notes, total_visits, last_visit FROM clients WHERE id = ?', [id]);
+    const numericId = Number(id);
+    if (!Number.isInteger(numericId) || numericId <= 0) {
+      return res.status(400).json({ error: 'ID de cliente inválido' });
+    }
+
+    const [client] = await pool.execute('SELECT id, name, phone, email, notes, total_visits, last_visit FROM clients WHERE id = ?', [numericId]);
     if (client.length === 0) {
       return res.status(404).json({ error: 'Cliente no encontrado' });
     }
 
+    const userRole = req.user.role;
+    const isAdmin = userRole === 'admin';
+    const isBarber = userRole === 'barber';
+    const isClient = userRole === 'client';
+
+    if (isClient) {
+      const ownId = req.user.clientId;
+      if (!ownId || Number(ownId) !== numericId) {
+        return res.status(403).json({ error: 'No tienes permisos para acceder a este recurso' });
+      }
+    }
+
     const [appointments] = await pool.execute(
       'SELECT a.*, s.name AS service_name, s.duration_minutes AS service_duration, s.price_cents, w.name AS workstation_name, b.name AS barber_name FROM appointments a LEFT JOIN services s ON a.service_id = s.id LEFT JOIN workstations w ON a.workstation_id = w.id LEFT JOIN barbers b ON a.barber_id = b.id WHERE a.client_id = ? ORDER BY a.appointment_date DESC, a.appointment_time DESC',
-      [id]
+      [numericId]
     );
 
-    res.json({ ...client[0], appointments });
+    const responseClient = { ...client[0], appointments };
+    if (isClient) {
+      responseClient.id = numericId;
+    }
+
+    res.json(responseClient);
   } catch (error) {
     console.error('Error fetching client:', error);
     res.status(500).json({ error: 'Error interno del servidor' });

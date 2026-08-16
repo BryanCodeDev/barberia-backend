@@ -179,8 +179,12 @@ router.post('/', async (req, res) => {
   }
 });
 
-router.get('/my', authenticateToken, async (req, res) => {
+router.get('/my', authenticateToken, requireRole(['client']), async (req, res) => {
   try {
+    const clientId = req.user.clientId;
+    if (!clientId) {
+      return res.status(403).json({ error: 'Token inválido para este recurso' });
+    }
     const appointments = await pool.execute(
       'SELECT a.*, s.name AS service_name, s.duration_minutes AS service_duration, s.price_cents FROM appointments a LEFT JOIN services s ON a.service_id = s.id WHERE a.client_id = ? ORDER BY a.appointment_date DESC, a.appointment_time DESC',
       [req.user.clientId]

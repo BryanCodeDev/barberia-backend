@@ -3,15 +3,81 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const pool = require('../config/database');
 const { sendOtpCode } = require('../utils/notifications');
+const { validate } = require('../middleware/validate');
 require('dotenv').config();
 
 const router = express.Router();
+
+const { authenticateToken } = require('../middleware/auth');
+const { authLimiter, otpLimiter } = require('../middleware/rateLimiter');
+
+const loginSchema = {
+  body: {
+    username: {
+      required: true,
+      requiredMessage: 'El usuario es requerido',
+      minLength: 2,
+      minLengthMessage: 'El usuario debe tener al menos 2 caracteres',
+    },
+    password: {
+      required: true,
+      requiredMessage: 'La contraseña es requerida',
+    },
+  },
+};
+
+const otpRequestSchema = {
+  body: {
+    phone: {
+      required: true,
+      requiredMessage: 'El teléfono es requerido',
+      pattern: /^\d{10}$/,
+      patternMessage: 'El teléfono debe tener 10 dígitos',
+    },
+  },
+};
+
+const otpVerifySchema = {
+  body: {
+    phone: {
+      required: true,
+      requiredMessage: 'El teléfono es requerido',
+      pattern: /^\d{10}$/,
+      patternMessage: 'El teléfono debe tener 10 dígitos',
+    },
+    code: {
+      required: true,
+      requiredMessage: 'El código es requerido',
+      pattern: /^\d{6}$/,
+      patternMessage: 'El código debe tener 6 dígitos',
+    },
+  },
+};
+
+const googleSchema = {
+  body: {
+    id_token: {
+      required: true,
+      requiredMessage: 'El token de Google es requerido',
+      type: 'string',
+    },
+  },
+};
+
+router.get('/verify', authenticateToken, (req, res) => {
+  const user = req.user;
+  if (user.role === 'client') {
+    return res.json({ id: user.clientId, phone: user.phone, role: user.role });
+  }
+  res.json({ id: user.id, username: user.username, role: user.role, entity_id: user.entity_id });
+});
 
 const OTP_EXPIRY_MINUTES = 5;
 const OTP_MAX_ATTEMPTS = 5;
 const OTP_RESEND_COOLDOWN_SECONDS = 60;
 
-router.post('/login', async (req, res) => {
+router.use('/login', authLimiter);
+router.post('/login', validate(loginSchema), async (req, res) => {
   try {
     const { username, password } = req.body;
 
@@ -47,7 +113,8 @@ router.post('/login', async (req, res) => {
   }
 });
 
-router.post('/client/request-otp', async (req, res) => {
+router.use('/client/request-otp', otpLimiter);
+router.post('/client/request-otp', validate(otpRequestSchema), async (req, res) => {
   try {
     const { phone } = req.body;
 
@@ -92,7 +159,8 @@ router.post('/client/request-otp', async (req, res) => {
   }
 });
 
-router.post('/client/verify-otp', async (req, res) => {
+router.use('/client/verify-otp', authLimiter);
+router.post('/client/verify-otp', validate(otpVerifySchema), async (req, res) => {
   try {
     const { phone, code } = req.body;
 
@@ -149,7 +217,7 @@ router.post('/client/verify-otp', async (req, res) => {
     await pool.execute('UPDATE clients SET phone_verified = 1 WHERE id = ?', [client.id]);
 
     const token = jwt.sign(
-      { clientId: client.id, phone: client.phone },
+      { clientId: client.id, phone: client.phone, role: 'client' },
       process.env.JWT_SECRET,
       { expiresIn: '24h' }
     );
@@ -166,7 +234,8 @@ router.post('/client/verify-otp', async (req, res) => {
   }
 });
 
-router.post('/client/google', async (req, res) => {
+router.use('/client/google', authLimiter);
+router.post('/client/google', validate(googleSchema), async (req, res) => {
   try {
     const { id_token } = req.body;
 
@@ -216,7 +285,7 @@ router.post('/client/google', async (req, res) => {
     }
 
     const token = jwt.sign(
-      { clientId: client.id, phone: client.phone },
+      { clientId: client.id, phone: client.phone, role: 'client' },
       process.env.JWT_SECRET,
       { expiresIn: '24h' }
     );

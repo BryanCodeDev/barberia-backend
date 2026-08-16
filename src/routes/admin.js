@@ -56,7 +56,6 @@ const getBarberId = (req) => {
     return normalizedName.includes(normalizedUsername) || normalizedUsername.includes(normalizedName);
   });
   const barberId = matched?.id || null;
-  console.log('[getBarberId] username=', username, 'entity_id=', req.user.entity_id, 'resolved barberId=', barberId);
   return barberId;
 };
 
@@ -238,7 +237,6 @@ router.get('/revenue', async (req, res) => {
     const barberFilter = barberId ? 'AND a.barber_id = ?' : '';
     const currentParams = barberId ? [formatDate(currentStart), formatDate(currentEnd), barberId] : [formatDate(currentStart), formatDate(currentEnd)];
     const previousParams = barberId ? [formatDate(previousStart), formatDate(previousEnd), barberId] : [formatDate(previousStart), formatDate(previousEnd)];
-    console.log('[REVENUE] barberId=', barberId, 'period=', period, 'currentParams=', currentParams);
 
     const [currentRows] = await pool.execute(
       `SELECT SUM(s.price_cents) AS total_revenue, COUNT(a.id) AS total_appointments
@@ -453,7 +451,12 @@ router.get('/performance', async (req, res) => {
 
 router.get('/clients', async (req, res) => {
   try {
-    const { search = '', period = 'month' } = req.query;
+    const { search = '', period = 'month', page = '1', limit = '20' } = req.query;
+    const pageNum = parseInt(page, 10) || 1;
+    const limitNum = parseInt(limit, 10) || 20;
+    const offset = (pageNum - 1) * limitNum;
+    const safeLimit = Math.max(1, Math.min(limitNum, 100));
+
     const { start, end } = getPeriodRange(period);
 
     let query = `SELECT c.id, c.name, c.phone, c.email, c.total_visits, c.last_visit,
@@ -476,6 +479,7 @@ router.get('/clients', async (req, res) => {
     }
 
     query += ' GROUP BY c.id, c.name, c.phone, c.email, c.total_visits, c.last_visit ORDER BY c.name ASC';
+    query += ` LIMIT ${safeLimit} OFFSET ${offset}`;
 
     const [rows] = await pool.execute(query, params);
     res.json(rows);
@@ -928,7 +932,6 @@ router.get('/barbers/agenda', async (req, res) => {
     const targetDate = date || `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 
     const barberId = getBarberId(req);
-    console.log('[AGENDA_REQUEST] username=', req.user?.username, 'role=', req.user?.role, 'entity_id=', req.user?.entity_id, 'resolved barberId=', barberId, 'date=', targetDate);
     let barbersQuery = 'SELECT id, name FROM barbers WHERE is_active = 1';
     const barbersParams = [];
     if (barberId) {
@@ -937,7 +940,6 @@ router.get('/barbers/agenda', async (req, res) => {
     }
     barbersQuery += ' ORDER BY name ASC';
     const [barbers] = await pool.execute(barbersQuery, barbersParams);
-    console.log('[AGENDA] user role=', req.user?.role, 'entity_id=', req.user?.entity_id, 'barberId=', barberId, 'date=', targetDate, 'barbers found=', barbers.length, barbers.map(b => ({ id: b.id, name: b.name })));
 
     const [appointments] = await pool.execute(
       `SELECT a.id, a.appointment_time, a.duration_minutes, a.status, a.client_message,
@@ -951,10 +953,9 @@ router.get('/barbers/agenda', async (req, res) => {
        WHERE a.appointment_date = ?
          AND a.status != 'cancelled'
          ${barberId ? 'AND a.barber_id = ?' : ''}
-       ORDER BY a.appointment_time ASC`,
-      barberId ? [targetDate, barberId] : [targetDate]
-    );
-    console.log('[AGENDA] appointments found=', appointments.length, appointments.map(a => ({ id: a.id, barber_id: a.barber_id, time: a.appointment_time, status: a.status })));
+      ORDER BY a.appointment_time ASC`,
+       barberId ? [targetDate, barberId] : [targetDate]
+     );
 
     const agenda = barbers.map((barber) => {
       const barberAppointments = appointments.filter((apt) => apt.barber_id === barber.id);
