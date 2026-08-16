@@ -70,7 +70,7 @@ DELETE FROM admin_users WHERE id > 0;
 INSERT INTO admin_users (username, password_hash, role, entity_id, is_active) VALUES
   ('marco.rivas', '$2a$10$g1oGIZFBjuPp4CJUrMG9C.9St1YnVOK7QjfI8A5gyfF7.dpiLzAzW', 'barber', @marco_id, 1),
   ('juanjose.henriquez', '$2a$10$N2z06ewFykAxmRibg8UBBuze6yUsXagG5RVSsCdZZKTx65lOsgsyC', 'barber', @juan_id, 1),
-  ('admin', '$2a$10$xpMJeJ3z9UW2T2Q7CApntuL5nGOwMo5MKfBwRM.SYVybEYOO96YVi', 'admin', NULL, 1);
+  ('admin', '$2a$10$4vGokjIBjuc8GA6mViOyJ.39vvrBaEyzhbIfhespV6fsytl7gB4yy', 'admin', NULL, 1);
 
 INSERT INTO recommendations (service_id, text, `order`, is_active) VALUES
   (1, 'Llegá 5 minutos antes para disfrutar la experiencia completa sin apuros.', 1, 1),

@@ -66,7 +66,16 @@ async function migrate() {
       }
     }
 
-    await connection.query('ALTER TABLE sessions DROP INDEX uk_user_active_session');
+    try {
+      await connection.query('ALTER TABLE sessions DROP INDEX uk_user_active_session');
+    } catch (err) {
+      const code = err.code || err.errno;
+      if (code === 'ER_CANT_DROP_FIELD_OR_KEY' || code === 1091) {
+        console.warn('Migration warning (session unique index not found, continuing):', err.message);
+      } else {
+        throw err;
+      }
+    }
 
     const seedPath = resolveDbPath('seed.sql');
     const seedSQL = fs.readFileSync(seedPath, 'utf8');
