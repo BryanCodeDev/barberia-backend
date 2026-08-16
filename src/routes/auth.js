@@ -8,8 +8,40 @@ require('dotenv').config();
 
 const router = express.Router();
 
-const { authenticateToken } = require('../middleware/auth');
+const { authenticateToken, requireRole } = require('../middleware/auth');
 const { authLimiter, otpLimiter } = require('../middleware/rateLimiter');
+
+const SESSION_DURATION_HOURS = 24;
+
+function generateSessionId() {
+  const array = new Uint8Array(32);
+  crypto.getRandomValues(array);
+  return Array.from(array, b => b.toString(16).padStart(2, '0')).join('');
+}
+
+async function createSession(userId, userRole, userAgent, ipAddress) {
+  const sessionId = generateSessionId();
+  const expiresAt = new Date(Date.now() + SESSION_DURATION_HOURS * 60 * 60 * 1000);
+
+  await pool.execute(
+    'UPDATE sessions SET is_active = 0, replaced_at = NOW() WHERE user_id = ? AND user_role = ? AND is_active = 1',
+    [userId, userRole]
+  );
+
+  await pool.execute(
+    'INSERT INTO sessions (user_id, user_role, session_id, user_agent, ip_address, expires_at) VALUES (?, ?, ?, ?, ?, ?)',
+    [userId, userRole, sessionId, userAgent || null, ipAddress || null, expiresAt]
+  );
+
+  return sessionId;
+}
+
+async function invalidateSession(sessionId) {
+  await pool.execute(
+    'UPDATE sessions SET is_active = 0, replaced_at = NOW() WHERE session_id = ?',
+    [sessionId]
+  );
+}
 
 const loginSchema = {
   body: {
@@ -72,6 +104,19 @@ router.get('/verify', authenticateToken, (req, res) => {
   res.json({ id: user.id, username: user.username, role: user.role, entity_id: user.entity_id });
 });
 
+router.post('/logout', authenticateToken, async (req, res) => {
+  try {
+    const sessionId = req.user.session_id;
+    if (sessionId) {
+      await invalidateSession(sessionId);
+    }
+    res.json({ success: true, message: 'Sesión cerrada correctamente' });
+  } catch (error) {
+    console.error('Logout error:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
 const OTP_EXPIRY_MINUTES = 5;
 const OTP_MAX_ATTEMPTS = 5;
 const OTP_RESEND_COOLDOWN_SECONDS = 60;
@@ -100,8 +145,10 @@ router.post('/login', validate(loginSchema), async (req, res) => {
       return res.status(401).json({ error: 'Credenciales incorrectas' });
     }
 
+    const sessionId = await createSession(admin.id, admin.role, req.headers['user-agent'], req.ip);
+
     const token = jwt.sign(
-      { id: admin.id, username: admin.username, role: admin.role, entity_id: admin.entity_id },
+      { id: admin.id, username: admin.username, role: admin.role, entity_id: admin.entity_id, session_id: sessionId },
       process.env.JWT_SECRET,
       { expiresIn: process.env.JWT_EXPIRES_IN || '24h' }
     );
@@ -216,8 +263,10 @@ router.post('/client/verify-otp', validate(otpVerifySchema), async (req, res) =>
 
     await pool.execute('UPDATE clients SET phone_verified = 1 WHERE id = ?', [client.id]);
 
+    const sessionId = await createSession(client.id, 'client', req.headers['user-agent'], req.ip);
+
     const token = jwt.sign(
-      { clientId: client.id, phone: client.phone, role: 'client' },
+      { clientId: client.id, phone: client.phone, role: 'client', session_id: sessionId },
       process.env.JWT_SECRET,
       { expiresIn: '24h' }
     );
@@ -284,8 +333,10 @@ router.post('/client/google', validate(googleSchema), async (req, res) => {
       });
     }
 
+    const sessionId = await createSession(client.id, 'client', req.headers['user-agent'], req.ip);
+
     const token = jwt.sign(
-      { clientId: client.id, phone: client.phone, role: 'client' },
+      { clientId: client.id, phone: client.phone, role: 'client', session_id: sessionId },
       process.env.JWT_SECRET,
       { expiresIn: '24h' }
     );

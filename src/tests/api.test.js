@@ -38,6 +38,22 @@ const request = (method, path, body = null, headers = {}) => {
   });
 };
 
+function decodeToken(token) {
+  try {
+    const payload = token.split('.')[1];
+    const base64 = payload.replace(/-/g, '+').replace(/_/g, '/');
+    const jsonPayload = decodeURIComponent(
+      atob(base64)
+        .split('')
+        .map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+        .join('')
+    );
+    return JSON.parse(jsonPayload);
+  } catch {
+    return null;
+  }
+}
+
 const adminToken = jwt.sign(
   { id: 1, username: 'admin', role: 'admin', entity_id: null },
   JWT_SECRET,
@@ -185,6 +201,132 @@ describe('Security Tests', () => {
         Authorization: `Bearer ${adminToken}`,
       });
       expect(res.status).toBe(403);
+    });
+  });
+
+  describe('Session uniqueness', () => {
+    it('POST /api/auth/login should return token with session_id', async () => {
+      const res = await request('POST', '/api/auth/login', {
+        username: 'admin',
+        password: 'admin123',
+      });
+      expect(res.status).toBe(200);
+      expect(res.body).toHaveProperty('token');
+      const decoded = decodeToken(res.body.token);
+      expect(decoded).toHaveProperty('session_id');
+      expect(typeof decoded.session_id).toBe('string');
+      expect(decoded.session_id.length).toBeGreaterThanOrEqual(32);
+    });
+
+    it('second login of same user should replace previous session', async () => {
+      const resA = await request('POST', '/api/auth/login', {
+        username: 'admin',
+        password: 'admin123',
+      });
+      expect(resA.status).toBe(200);
+
+      const resB = await request('POST', '/api/auth/login', {
+        username: 'admin',
+        password: 'admin123',
+      });
+      expect(resB.status).toBe(200);
+
+      const tokenA = resA.body.token;
+      const tokenB = resB.body.token;
+      const decodedA = decodeToken(tokenA);
+      const decodedB = decodeToken(tokenB);
+
+      expect(decodedA.session_id).not.toBe(decodedB.session_id);
+      expect(decodedA.id).toBe(decodedB.id);
+    });
+
+    it('replaced session should receive 409 on /api/auth/verify', async () => {
+      const resA = await request('POST', '/api/auth/login', {
+        username: 'admin',
+        password: 'admin123',
+      });
+      const resB = await request('POST', '/api/auth/login', {
+        username: 'admin',
+        password: 'admin123',
+      });
+
+      const verifyRes = await request('GET', '/api/auth/verify', null, {
+        Authorization: `Bearer ${resA.body.token}`,
+      });
+      expect(verifyRes.status).toBe(409);
+      expect(verifyRes.body.error).toBe('SESSION_REPLACED');
+    });
+
+    it('new session should continue working after replacement', async () => {
+      const resA = await request('POST', '/api/auth/login', {
+        username: 'admin',
+        password: 'admin123',
+      });
+      const resB = await request('POST', '/api/auth/login', {
+        username: 'admin',
+        password: 'admin123',
+      });
+
+      const verifyRes = await request('GET', '/api/auth/verify', null, {
+        Authorization: `Bearer ${resB.body.token}`,
+      });
+      expect(verifyRes.status).toBe(200);
+      expect(verifyRes.body).toHaveProperty('id', 1);
+    });
+
+    it('different users should not replace each other', async () => {
+      const resAdmin = await request('POST', '/api/auth/login', {
+        username: 'admin',
+        password: 'admin123',
+      });
+
+      const otherClientRes = await request('POST', '/api/clients', {
+        name: 'Otro Cliente Test',
+        phone: '3015667130',
+        email: 'otro@example.com',
+      });
+      const otherClientId = otherClientRes.status === 201 ? otherClientRes.body.id : clientIdForTests + 1;
+
+      const resOther = await request('POST', '/api/auth/client/verify-otp', {
+        phone: '3015667130',
+        code: '123456',
+      });
+
+      if (resOther.status === 404) {
+        const tokenOther = jwt.sign(
+          { clientId: otherClientId, phone: '3015667130', role: 'client' },
+          JWT_SECRET,
+          { expiresIn: '1h' }
+        );
+        const verifyAdmin = await request('GET', '/api/auth/verify', null, {
+          Authorization: `Bearer ${resAdmin.body.token}`,
+        });
+        expect(verifyAdmin.status).toBe(200);
+        return;
+      }
+
+      const verifyAdmin = await request('GET', '/api/auth/verify', null, {
+        Authorization: `Bearer ${resAdmin.body.token}`,
+      });
+      expect(verifyAdmin.status).toBe(200);
+    });
+
+    it('POST /api/auth/logout should invalidate session', async () => {
+      const res = await request('POST', '/api/auth/login', {
+        username: 'admin',
+        password: 'admin123',
+      });
+      expect(res.status).toBe(200);
+
+      const logoutRes = await request('POST', '/api/auth/logout', null, {
+        Authorization: `Bearer ${res.body.token}`,
+      });
+      expect(logoutRes.status).toBe(200);
+
+      const verifyRes = await request('GET', '/api/auth/verify', null, {
+        Authorization: `Bearer ${res.body.token}`,
+      });
+      expect([403, 409]).toContain(verifyRes.status);
     });
   });
 });

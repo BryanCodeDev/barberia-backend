@@ -175,3 +175,20 @@ CREATE TABLE IF NOT EXISTS attendance_logs (
   INDEX idx_attendance_created (created_at)
 );
 
+CREATE TABLE IF NOT EXISTS sessions (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  user_id INT NOT NULL,
+  user_role ENUM('admin','barber','client') NOT NULL,
+  session_id VARCHAR(128) NOT NULL,
+  user_agent TEXT NULL,
+  ip_address VARCHAR(45) NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  expires_at TIMESTAMP NOT NULL,
+  replaced_at TIMESTAMP NULL,
+  is_active TINYINT(1) DEFAULT 1,
+  UNIQUE KEY uk_user_active_session (user_id, user_role, is_active),
+  INDEX idx_session_id (session_id),
+  INDEX idx_expires_at (expires_at)
+);
+
