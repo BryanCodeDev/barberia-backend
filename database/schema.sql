@@ -187,7 +187,7 @@ CREATE TABLE IF NOT EXISTS sessions (
   expires_at TIMESTAMP NOT NULL,
   replaced_at TIMESTAMP NULL,
   is_active TINYINT(1) DEFAULT 1,
-  UNIQUE KEY uk_user_active_session (user_id, user_role, is_active),
+  INDEX idx_user_active (user_id, user_role, is_active),
   INDEX idx_session_id (session_id),
   INDEX idx_expires_at (expires_at)
 );

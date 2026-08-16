@@ -25,7 +25,7 @@ async function createSession(userId, userRole, userAgent, ipAddress) {
   const expiresAt = new Date(Date.now() + SESSION_DURATION_HOURS * 60 * 60 * 1000);
 
   await pool.execute(
-    'UPDATE sessions SET is_active = 0, replaced_at = NOW() WHERE user_id = ? AND user_role = ? AND is_active = 1',
+    'DELETE FROM sessions WHERE user_id = ? AND user_role = ? AND is_active = 1',
     [userId, userRole]
   );
 
@@ -39,7 +39,7 @@ async function createSession(userId, userRole, userAgent, ipAddress) {
 
 async function invalidateSession(sessionId) {
   await pool.execute(
-    'UPDATE sessions SET is_active = 0, replaced_at = NOW() WHERE session_id = ?',
+    'DELETE FROM sessions WHERE session_id = ?',
     [sessionId]
   );
 }
