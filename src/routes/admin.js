@@ -1,6 +1,7 @@
 const express = require('express');
 const pool = require('../config/database');
 const { requireRole } = require('../middleware/auth');
+const { getBroker } = require('../websocket/broker');
 
 const router = express.Router();
 
@@ -918,6 +919,12 @@ router.patch('/appointments/:id', async (req, res) => {
     values.push(id);
     await pool.execute(`UPDATE appointments SET ${updates.join(', ')} WHERE id = ?`, values);
     const [rows] = await pool.execute('SELECT a.*, s.name AS service_name, c.name AS client_name, c.phone AS client_phone, w.name AS workstation_name, b.name AS barber_name FROM appointments a LEFT JOIN services s ON a.service_id = s.id LEFT JOIN clients c ON a.client_id = c.id LEFT JOIN workstations w ON a.workstation_id = w.id LEFT JOIN barbers b ON a.barber_id = b.id WHERE a.id = ?', [id]);
+
+    const broker = getBroker();
+    if (broker) {
+      broker.emitAppointmentUpdated(rows[0], req.user?.role || 'unknown');
+    }
+
     res.json(rows[0]);
   } catch (error) {
     console.error('Error updating appointment:', error);

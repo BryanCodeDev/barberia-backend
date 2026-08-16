@@ -5,6 +5,7 @@ const crypto = require('crypto');
 const pool = require('../config/database');
 const { sendOtpCode } = require('../utils/notifications');
 const { validate } = require('../middleware/validate');
+const { getBroker } = require('../websocket/broker');
 require('dotenv').config();
 
 const router = express.Router();
@@ -24,10 +25,22 @@ async function createSession(userId, userRole, userAgent, ipAddress) {
   const sessionId = generateSessionId();
   const expiresAt = new Date(Date.now() + SESSION_DURATION_HOURS * 60 * 60 * 1000);
 
+  const [oldSessions] = await pool.execute(
+    'SELECT session_id FROM sessions WHERE user_id = ? AND user_role = ? AND is_active = 1',
+    [userId, userRole]
+  );
+
   await pool.execute(
     'DELETE FROM sessions WHERE user_id = ? AND user_role = ? AND is_active = 1',
     [userId, userRole]
   );
+
+  const broker = getBroker();
+  if (broker) {
+    for (const row of oldSessions) {
+      broker.closeSession(row.session_id);
+    }
+  }
 
   await pool.execute(
     'INSERT INTO sessions (user_id, user_role, session_id, user_agent, ip_address, expires_at) VALUES (?, ?, ?, ?, ?, ?)',
@@ -42,6 +55,11 @@ async function invalidateSession(sessionId) {
     'DELETE FROM sessions WHERE session_id = ?',
     [sessionId]
   );
+
+  const broker = getBroker();
+  if (broker) {
+    broker.closeSession(sessionId);
+  }
 }
 
 const loginSchema = {

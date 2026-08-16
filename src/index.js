@@ -23,6 +23,8 @@ const adminRoutes = require('./routes/admin');
 const workstationRoutes = require('./routes/workstations');
 const { migrate, dropAndMigrate } = require('./middleware/migrate');
 const { markNoShows } = require('./utils/attendance');
+const { createWebSocketServer } = require('./websocket/server');
+const { setBroker } = require('./websocket/broker');
 const cron = require('node-cron');
 
 const app = express();
@@ -165,6 +167,10 @@ async function startServer() {
   const server = app.listen(PORT, () => {
     logger.info(`Servidor backend corriendo en puerto ${PORT} [${process.env.NODE_ENV || 'development'}]`);
   });
+
+  const wsBroker = createWebSocketServer(server);
+  setBroker(wsBroker);
+  logger.info('WebSocket server iniciado en /ws');
 
   cron.schedule('*/5 * * * *', async () => {
     try {

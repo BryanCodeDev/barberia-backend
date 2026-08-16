@@ -28,7 +28,8 @@
     "node-cron": "^3.0.3",
     "nodemailer": "^9.0.5",
     "pm2": "^5.4.3",
-    "winston": "^3.19.0"
+    "winston": "^3.19.0",
+    "ws": "^8.21.3"
   },
   "devDependencies": {
     "jest": "^29.7.0",

@@ -212,7 +212,7 @@ describe('Security Tests', () => {
     it('POST /api/auth/login should return token with session_id', async () => {
       const res = await request('POST', '/api/auth/login', {
         username: 'admin',
-        password: 'admin123',
+        password: 'Admin1012@',
       });
       expect(res.status).toBe(200);
       expect(res.body).toHaveProperty('token');
@@ -225,13 +225,13 @@ describe('Security Tests', () => {
     it('second login of same user should replace previous session', async () => {
       const resA = await request('POST', '/api/auth/login', {
         username: 'admin',
-        password: 'admin123',
+        password: 'Admin1012@',
       });
       expect(resA.status).toBe(200);
 
       const resB = await request('POST', '/api/auth/login', {
         username: 'admin',
-        password: 'admin123',
+        password: 'Admin1012@',
       });
       expect(resB.status).toBe(200);
 
@@ -247,11 +247,11 @@ describe('Security Tests', () => {
     it('replaced session should receive 409 on /api/auth/verify', async () => {
       const resA = await request('POST', '/api/auth/login', {
         username: 'admin',
-        password: 'admin123',
+        password: 'Admin1012@',
       });
       const resB = await request('POST', '/api/auth/login', {
         username: 'admin',
-        password: 'admin123',
+        password: 'Admin1012@',
       });
 
       const verifyRes = await request('GET', '/api/auth/verify', null, {
@@ -264,11 +264,11 @@ describe('Security Tests', () => {
     it('new session should continue working after replacement', async () => {
       const resA = await request('POST', '/api/auth/login', {
         username: 'admin',
-        password: 'admin123',
+        password: 'Admin1012@',
       });
       const resB = await request('POST', '/api/auth/login', {
         username: 'admin',
-        password: 'admin123',
+        password: 'Admin1012@',
       });
 
       const verifyRes = await request('GET', '/api/auth/verify', null, {
@@ -281,7 +281,7 @@ describe('Security Tests', () => {
     it('different users should not replace each other', async () => {
       const resAdmin = await request('POST', '/api/auth/login', {
         username: 'admin',
-        password: 'admin123',
+        password: 'Admin1012@',
       });
 
       const otherClientRes = await request('POST', '/api/clients', {
@@ -318,7 +318,7 @@ describe('Security Tests', () => {
     it('POST /api/auth/logout should invalidate session', async () => {
       const res = await request('POST', '/api/auth/login', {
         username: 'admin',
-        password: 'admin123',
+        password: 'Admin1012@',
       });
       expect(res.status).toBe(200);
 

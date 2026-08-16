@@ -3,6 +3,7 @@ const pool = require('../config/database');
 const { authenticateToken, requireRole } = require('../middleware/auth');
 const { getAvailableTimeSlots } = require('../utils/availability');
 const { sendBookingConfirmation, sendRealtimeNotification } = require('../utils/notifications');
+const { getBroker } = require('../websocket/broker');
 require('dotenv').config();
 
 const router = express.Router();
@@ -169,6 +170,11 @@ router.post('/', async (req, res) => {
       }
     }
 
+    const broker = getBroker();
+    if (broker) {
+      broker.emitAppointmentCreated(appointment[0], req.user?.role || 'client');
+    }
+
     res.status(201).json({ id: result.insertId, message: 'Cita creada exitosamente', appointment: appointment[0] });
   } catch (error) {
     console.error('Error creating appointment:', error);
@@ -235,6 +241,11 @@ router.patch('/:id/status', authenticateToken, requireRole(['admin', 'barber']),
       [id]
     );
 
+    const broker = getBroker();
+    if (broker) {
+      broker.emitAppointmentStatusChanged(updated[0], req.user?.role || 'unknown');
+    }
+
     res.json({ message: 'Estado actualizado exitosamente', appointment: updated[0] });
   } catch (error) {
     console.error('Error updating appointment:', error);
@@ -273,6 +284,12 @@ router.delete('/:id', authenticateToken, requireRole(['admin', 'barber']), async
     }
 
     await pool.execute('DELETE FROM appointments WHERE id = ?', [id]);
+
+    const broker = getBroker();
+    if (broker) {
+      broker.emitAppointmentDeleted(id, req.user?.role || 'unknown');
+    }
+
     res.json({ message: 'Cita eliminada exitosamente' });
   } catch (error) {
     console.error('Error deleting appointment:', error);

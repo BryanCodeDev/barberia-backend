@@ -1,6 +1,7 @@
 const pool = require('../config/database');
 const nodemailer = require('nodemailer');
 const axios = require('axios');
+const { getBroker } = require('../websocket/broker');
 
 const updateNotification = async (appointmentId, channel, status, errorMessage = null) => {
   try {
@@ -222,6 +223,12 @@ const sendRealtimeNotification = async ({ userId, userRole, type, title, message
       'INSERT INTO realtime_notifications (user_id, user_role, type, title, message) VALUES (?, ?, ?, ?, ?)',
       [userId, userRole, type, title, message]
     );
+
+    const broker = getBroker();
+    if (broker) {
+      broker.emitNotificationNew({ user_id: userId, user_role: userRole, type, title, message });
+    }
+
     return true;
   } catch (error) {
     console.error('Error inserting realtime notification:', error);
