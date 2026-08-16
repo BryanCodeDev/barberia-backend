@@ -1,6 +1,7 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 const pool = require('../config/database');
 const { sendOtpCode } = require('../utils/notifications');
 const { validate } = require('../middleware/validate');

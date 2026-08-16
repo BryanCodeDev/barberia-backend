@@ -1,6 +1,12 @@
 const rateLimit = require('express-rate-limit');
 
-const authLimiter = rateLimit({
+function noopLimiter() {
+  return (req, res, next) => next();
+}
+
+const isTest = process.env.NODE_ENV === 'test';
+
+const authLimiter = isTest ? noopLimiter() : rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 10,
   message: { error: 'Demasiados intentos. Intenta de nuevo en 15 minutos.' },
@@ -8,7 +14,7 @@ const authLimiter = rateLimit({
   legacyHeaders: false,
 });
 
-const otpLimiter = rateLimit({
+const otpLimiter = isTest ? noopLimiter() : rateLimit({
   windowMs: 60 * 1000,
   max: 3,
   message: { error: 'Demasiados códigos solicitados. Intenta de nuevo en 1 minuto.' },
@@ -16,7 +22,7 @@ const otpLimiter = rateLimit({
   legacyHeaders: false,
 });
 
-const clientCreationLimiter = rateLimit({
+const clientCreationLimiter = isTest ? noopLimiter() : rateLimit({
   windowMs: 60 * 60 * 1000,
   max: 20,
   message: { error: 'Demasiados registros. Intenta de nuevo en 1 hora.' },

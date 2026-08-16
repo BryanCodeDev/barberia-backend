@@ -329,4 +329,20 @@ describe('Security Tests', () => {
       expect([403, 409]).toContain(verifyRes.status);
     });
   });
+
+  describe('Rate Limiting', () => {
+    it('should return 429 after too many login attempts', async () => {
+      for (let i = 0; i < 10; i++) {
+        await request('POST', '/api/auth/login', {
+          username: 'wrong',
+          password: 'wrong',
+        });
+      }
+      const res = await request('POST', '/api/auth/login', {
+        username: 'wrong',
+        password: 'wrong',
+      });
+      expect(res.status).toBe(429);
+    }, 30000);
+  });
 });
